@@ -15,7 +15,7 @@
 - **Client → Raw Storage**：客户端可在 Upload Service 授权后直接上传原图，避免大文件经过 API 服务器。
 - **API Gateway / LB + Authz / Rate Limiter**：统一入口，负责路由、权限检查和限流。
 - **Upload Service + Processor**：Upload Service 创建照片记录；Processor 异步生成缩略图、压缩图等版本，再写入 Object Storage。
-- **Object Storage + Metadata DB**：前者存照片文件，后者存 `photo_id`、`user_id`、描述、文件 URL、时间和位置等元数据。View Service 根据元数据找到文件；实际展示通常还会加 CDN，图中未画出。
+- **Object Storage + Metadata DB**：前者存照片文件，后者存 `photo_id`、`user_id`、描述、文件 URL、时间和位置等元数据。View Service 根据元数据找到文件。
 - **Follow 关系**：需要单独存“谁关注了谁”。这张上传/查看草图没有画出 Follow Store、Fan-out Service 或 Timeline Store；下面的 Feed 设计是在图上继续扩展。
 
 ## News Feed：Pull、Push 与 Hybrid
@@ -23,6 +23,12 @@
 - **Pull（读时聚合）**：用户打开 Feed 时，查询其关注的人并合并他们的新帖。发帖便宜，但读 Feed 可能需要大量查询和排序，读延迟较高。
 - **Push / fan-out-on-write（写时分发）**：有人发帖后，Fan-out Service 异步查该作者的 **followers（粉丝）**，把 `photo_id` 写入每位粉丝的预建 timeline。读 Feed 快，但每次发帖会产生多次写入。
 - **Hybrid（混合）**：普通作者采用 push；粉丝极多的作者采用 pull，用户读 Feed 时再合并其新帖，避免一次发帖触发海量写入。Timeline 通常只存 ID 和排序信息，照片仍在 Object Storage。
+
+## Cache 放在哪里？
+
+- **CDN 缓存照片**：`Object Storage（源站）→ CDN → Client`。热门照片和缩略图在靠近用户的边缘节点直接返回，减少源站流量和图片加载时间；CDN 不负责存 Follow 关系或生成 Feed。原图没有画 CDN，这是实际方案中可补的一层。
+- **Redis 缓存小数据**：放在 View Service 与 Metadata DB / Timeline Store 之间，缓存热门照片元数据或用户最近的 timeline ID，减少重复读。缓存未命中时读后端存储；Redis 不是照片文件的主要存储，也不能代替持久化的 Timeline Store。
+- **Follow 关系按需缓存**：只有测到 Fan-out 反复读取热点 followers list 成为瓶颈时，再考虑用 Redis 缓存。Follow / Unfollow 时更新或失效缓存，否则可能把帖子推给旧粉丝，或漏掉新粉丝。
 
 ## Q&A：Fan-out 要查 Follow Store 吗？需要 Cache 吗？
 
