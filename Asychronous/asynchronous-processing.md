@@ -83,6 +83,8 @@
 
 消息如何流转，取决于业务模型和消息系统提供的能力。
 
+关于 Kafka 究竟是 Queue 还是 Pub/Sub，以及 Event／Command 与工作队列／广播／持久日志的组合，见 [异步系统设计复习](messaging-system-design-review.md)。
+
 ### 3.1 工作队列（Work Queue）：抢单模式
 
 一个队列连接多个竞争消费者（Competing Consumers）。
@@ -90,6 +92,8 @@
 - **机制**：一条任务消息通常交给一个消费者执行，多个 Worker 分摊任务。失败重试时，同一消息可能再次交给原消费者或其他消费者，因此仍需处理重复投递（Duplicate Delivery）。
 - **场景（Use Cases）**：图片处理（Image Processing）、邮件发送（Email Delivery）、后台任务（Background Jobs）。
 - **优势**：实现负载均衡（Load Balancing）和水平扩展（Horizontal Scaling）；任务增加时可以增加 Worker。
+
+完整案例见 [设计任务调度系统](design-job-scheduler.md)：任务提交、Worker 领取、状态追踪、重试，以及 Cron 和 DAG 扩展。
 
 ### 3.2 发布/订阅（Publish/Subscribe, Pub/Sub）：广播模式
 
@@ -112,6 +116,8 @@
 - **租户隔离（Tenant Isolation）**：为不同租户或服务等级（Service Tier）配置独立队列、并发限制（Concurrency Limits）或速率限制（Rate Limits）。
 - **可靠性（Reliability）**：配置重试、指数退避（Exponential Backoff）、随机抖动（Jitter）和死信队列。
 - **安全（Security）**：发送方生成签名（Signature），接收方验证签名和时间戳，降低伪造请求与重放攻击（Replay Attacks）的风险。
+
+完整案例见 [设计多租户 Webhook 系统](design-webhook.md)：从端点注册、事件路由到投递重试、分区顺序和安全设计。
 
 ---
 

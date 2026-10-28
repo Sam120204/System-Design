@@ -37,6 +37,9 @@ System-Design/
 | 笔记（Note） | 内容（Topics） |
 | --- | --- |
 | [基础知识：异步处理（Asynchronous Processing）](Asychronous/asynchronous-processing.md) | 同步与异步、Producer / Broker / Consumer、Work Queue、Pub/Sub、顺序、幂等与可观测性；SQS、EventBridge、Google Cloud Pub/Sub、Kafka、Redpanda 和 RabbitMQ 的具体比较 |
+| [异步系统设计复习：Kafka、Queue、Pub/Sub 与事件日志](Asychronous/messaging-system-design-review.md) | 用消息语义与读取模式两个维度理解 Kafka 的工作队列、发布订阅和持久日志用法 |
+| [案例分析：设计多租户 Webhook 系统](Asychronous/design-webhook.md) | 根据设计草图梳理订阅注册、事件路由、HTTP 投递、重试、分区顺序与安全要点 |
+| [案例分析：设计任务调度系统](Asychronous/design-job-scheduler.md) | 根据设计草图梳理任务提交、Worker 调度、状态与重试、容量估算，以及 Cron 和 DAG 扩展 |
 
 ## 数据密集型系统与设计案例（Data-intensive Systems and Design Cases）
 
