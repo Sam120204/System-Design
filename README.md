@@ -11,6 +11,7 @@ System-Design/
 ├── web development/     # Web 基础、扩容、数据库与术语
 │   └── images/          # Web 笔记引用的架构图
 ├── Asychronous/         # 异步处理与消息系统
+├── Instant Messaging System/  # IM 系统设计与数据分片
 ├── 数据密集系统/          # 架构权衡、数据模型与系统设计案例
 │   └── assets/          # 系统设计案例的架构图
 └── Kubernetes/          # 容器编排与部署实践
@@ -40,6 +41,12 @@ System-Design/
 | [异步系统设计复习：Kafka、Queue、Pub/Sub 与事件日志](Asychronous/messaging-system-design-review.md) | 用消息语义与读取模式两个维度理解 Kafka 的工作队列、发布订阅和持久日志用法 |
 | [案例分析：设计多租户 Webhook 系统](Asychronous/design-webhook.md) | 根据设计草图梳理订阅注册、事件路由、HTTP 投递、重试、分区顺序与安全要点 |
 | [案例分析：设计任务调度系统](Asychronous/design-job-scheduler.md) | 根据设计草图梳理任务提交、Worker 调度、状态与重试、容量估算，以及 Cron 和 DAG 扩展 |
+
+## 即时通讯系统（Instant Messaging System, IM）
+
+| 笔记（Note） | 内容（Topics） |
+| --- | --- |
+| [一致性哈希：服务器数量变化时如何减少数据迁移](<Instant Messaging System/consistent-hashing.md>) | 对比取模映射、哈希环与虚拟节点，说明扩缩容时的迁移范围及实际数据搬迁步骤 |
 
 ## 数据密集型系统与设计案例（Data-intensive Systems and Design Cases）
 
