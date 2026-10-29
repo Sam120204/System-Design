@@ -46,6 +46,7 @@ System-Design/
 
 | 笔记（Note） | 内容（Topics） |
 | --- | --- |
+| [WhatsApp: Design 1-1 Chat](<Instant Messaging System/whatsapp-design-1-1-chat.md>) | 经典系统设计面试题：在线消息投递、离线消息同步与设计草图 |
 | [一致性哈希：服务器数量变化时如何减少数据迁移](<Instant Messaging System/consistent-hashing.md>) | 对比取模映射、哈希环与虚拟节点，说明扩缩容时的迁移范围及实际数据搬迁步骤 |
 
 ## 数据密集型系统与设计案例（Data-intensive Systems and Design Cases）
