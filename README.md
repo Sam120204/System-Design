@@ -46,7 +46,9 @@ System-Design/
 
 | 笔记（Note） | 内容（Topics） |
 | --- | --- |
+| [IM System Design Review](<Instant Messaging System/im-system-design-review.md>) | 对比一对一、群聊与流式 AI 对话，复习读写不对称、CQRS、Pub/Sub、Forward 与消息持久化 |
 | [WhatsApp: Design 1-1 Chat](<Instant Messaging System/whatsapp-design-1-1-chat.md>) | 经典系统设计面试题：在线消息投递、离线消息同步与设计草图 |
+| [Slack: Design Group Chat](<Instant Messaging System/slack-design-group-chat.md>) | CQRS + Pub/Sub、存储分片与 Kafka、地域 Gateway、分散式 Proxy、频道内存状态与故障恢复，以及 Dispatcher / Pub/Sub Q&A |
 | [一致性哈希：服务器数量变化时如何减少数据迁移](<Instant Messaging System/consistent-hashing.md>) | 对比取模映射、哈希环与虚拟节点，说明扩缩容时的迁移范围及实际数据搬迁步骤 |
 
 ## 数据密集型系统与设计案例（Data-intensive Systems and Design Cases）
