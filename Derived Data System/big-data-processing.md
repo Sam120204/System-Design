@@ -129,6 +129,13 @@ The word **Lambda** in Lambda architecture is unrelated to a **lambda function**
 | Resource peaks | Scheduled batch jobs create peaks | Large replays may compete with online processing |
 | Tends to fit when | Auditing, reconciliation, and historical recomputation matter | Logs can be replayed long enough and stream logic is reusable |
 
+### Example: Card Fraud Detection
+
+- **Kappa:** Evaluate each payment in a stream to spot suspicious patterns quickly. If the detection logic changes, replay the retained transaction log through the updated job.
+- **Lambda:** Use the same fast stream alerts, plus a separate nightly batch job to recalculate fraud totals for auditing or reconciliation.
+
+If replay is sufficient for the required corrections, Kappa keeps the processing logic simpler. If an independent historical calculation is important, Lambda may be a better fit. A payment that must be blocked before authorization still needs a low-latency decision in the payment path; these architectures support analysis and monitoring around that decision.
+
 ### Correctness and Auditability
 
 Lambda's batch path can recompute from **immutable raw data**, which makes it useful for billing reconciliation and audits. A batch job can only correct data that was retained; it cannot recover an event that was lost before ingestion.
