@@ -101,6 +101,26 @@ These latency ranges are common, **not SLAs guaranteed by a tool**. Measure the 
 
 **Kappa architecture** uses stream processing as its primary computation path. When recomputation is needed, the system replays historical events through the stream job. It still needs reliable historical storage, state management, and a way to replace results.
 
+### How the Two Architectures Process Data
+
+In Lambda, both paths consume the same underlying data, but they work independently and on different schedules. The stream path publishes a quick result while the batch path later computes a more complete result. The batch job does not have to wait for the stream job to finish; its output is used to correct or replace the stream result.
+
+```text
+                    ┌──> Stream processing ──> Fast, near-real-time result ──┐
+Events ──> Durable log                                                   ├──> Served result
+                    └──> Batch processing ──> Recomputed result ────────────┘
+```
+
+In Kappa, live events and replayed historical events use the same stream-processing logic. A replay is commonly written to a separate result version, checked, and then switched into service. Large replays may need throttling or separate resources so they do not delay live processing.
+
+```text
+Live events ────────────┐
+                        ├──> Stream processing ──> Served result
+Historical log replay ──┘
+```
+
+The word **Lambda** in Lambda architecture is unrelated to a **lambda function**, such as AWS Lambda. AWS Lambda is a serverless compute service; it can be used as a component in a data system, but using it does not make the system a Lambda architecture.
+
 | Concern | Lambda | Kappa |
 | --- | --- | --- |
 | Computation logic | Separate batch and stream jobs can drift in metric definitions | Tries to reuse one stream implementation, which must still support historical data |
