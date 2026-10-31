@@ -1,5 +1,5 @@
 # Derived Data System
 
-派生数据系统学习笔记。
+Study notes on derived data systems.
 
-- [基础知识：大数据处理](big-data-processing.md)：批处理、微批处理、流处理，以及 Lambda 与 Kappa 架构。
+- [Fundamentals: Big Data Processing](big-data-processing.md): batch, micro-batch, and stream processing, plus Lambda and Kappa architectures.

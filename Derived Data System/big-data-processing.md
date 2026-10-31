@@ -1,130 +1,130 @@
-# 基础知识：大数据处理
+# Fundamentals: Big Data Processing
 
-大数据处理可以按**何时计算、如何处理持续到达的数据**分为批处理、微批处理和流处理。选型时先确定业务能容忍的端到端延迟，再看数据量、迟到事件、正确性要求与运维成本。
+Big data processing can be divided into batch, micro-batch, and stream processing based on **when computation happens and how continuously arriving data is handled**. Choose an approach by first setting the end-to-end latency the business can tolerate, then considering data volume, late events, correctness requirements, and operational cost.
 
-## 1. 批处理 Batch
+## 1. Batch Processing
 
-典型工具：Hadoop MapReduce、Spark Batch、数据仓库 SQL。
+Typical tools: Hadoop MapReduce, Spark Batch, and SQL on a data warehouse.
 
-**做法**：先积累一批数据，再定时离线计算。例如每天或每小时读取已落盘的数据，生成报表或聚合结果。
+**How it works:** Accumulate a dataset, then process it offline on a schedule. For example, read data already stored on disk every hour or day to produce reports or aggregates.
 
-**核心特征**
+**Key characteristics**
 
-- 输入通常是有边界的历史数据集，可以做全量或大范围扫描。
-- 输出在本次任务完成后才可用。历史数据齐全时，重算容易得到一致的结果。
-- 适合产出经过校正的最终结果，但结果是否正确仍取决于源数据质量和计算逻辑。
+- The input is usually a bounded historical dataset that can be scanned in full or across a large range.
+- Output becomes available after the job finishes. When the historical data is complete, rerunning the job can produce a consistent result.
+- Batch jobs are well suited to producing corrected final results, though correctness still depends on source data quality and the computation logic.
 
-**优势**
+**Advantages**
 
-- **容易重算与对账**：保留原始数据后，可以修复逻辑并重新计算。
-- **吞吐与成本效率高**：大规模顺序扫描、列式存储、压缩和向量化执行能充分利用资源。
-- **运行模型相对简单**：任务有明确的开始和结束，调度、失败重试和排查较直观。
+- **Easy to recompute and reconcile:** Retaining raw data lets you fix logic and recalculate results.
+- **High throughput and cost efficiency:** Large sequential scans, columnar storage, compression, and vectorized execution can use resources efficiently.
+- **A relatively simple operating model:** Jobs have clear start and finish points, making scheduling, retries, and troubleshooting straightforward.
 
-**劣势**
+**Disadvantages**
 
-- **延迟高**：通常为分钟到小时级，无法满足需要持续刷新的场景。
-- **资源峰值明显**：定时任务集中启动时会形成潮汐负载。
-- **不适合即时决策**：实时告警或预算控制等场景不能只等下一次批任务。
+- **High latency:** Results commonly take minutes or hours, so batch processing does not fit workloads that need continuous updates.
+- **Pronounced resource peaks:** Scheduled jobs that start together can create waves of load.
+- **Poor fit for immediate decisions:** Real-time alerts or budget controls cannot wait for the next batch run.
 
-**典型场景**：每日或每小时结算报表、历史回填、离线训练、审计与对账。
+**Typical use cases:** Daily or hourly settlement reports, historical backfills, offline model training, audits, and reconciliation.
 
-## 2. 微批处理 Micro-batch
+## 2. Micro-batch Processing
 
-典型工具：Spark Structured Streaming 的默认微批执行模式。
+Typical tool: Spark Structured Streaming in its default micro-batch execution mode.
 
-**做法**：输入持续到达，但引擎按较短的触发间隔（例如 1 秒、5 秒或 10 秒）将数据切成小批次，逐批处理并更新结果。
+**How it works:** Data arrives continuously, but the engine divides it into small batches at short trigger intervals, such as 1, 5, or 10 seconds. It processes each batch and updates the output.
 
-**核心特征**
+**Key characteristics**
 
-- 执行和故障恢复以批次为单位，适合准实时处理。
-- 触发间隔只是延迟的一部分；排队、计算、状态更新和写入下游都会增加端到端延迟。
-- 若处理一个批次所需的时间长期超过触发间隔，积压会不断增长。
+- Execution and failure recovery happen in batches, making this a practical option for near-real-time workloads.
+- The trigger interval is only part of the latency. Queuing, computation, state updates, and writes to downstream systems all add end-to-end delay.
+- If processing a batch regularly takes longer than the trigger interval, the backlog keeps growing.
 
-**优势**
+**Advantages**
 
-- **便于落地与排查**：每个批次有清晰的输入范围，适合重试与回放。
-- **秒级延迟常常够用**：经过容量规划和监控，可以支撑许多近实时看板。
-- **吞吐较强**：批式执行能摊薄部分调度与 IO 成本。
+- **Straightforward to implement and debug:** Each batch has a clear input range, which helps with retries and replay.
+- **Seconds of latency are often sufficient:** With capacity planning and monitoring, micro-batches can support many near-real-time dashboards.
+- **Strong throughput:** Batch execution can amortize some scheduling and I/O overhead.
 
-**劣势**
+**Disadvantages**
 
-- **存在调度与批次开销**：很难稳定提供极低的尾延迟。
-- **更新呈阶梯状**：结果通常在批次完成后才刷新。
-- **容易受突发流量影响**：批次变大时，后续批次会排队，延迟继续上升。
+- **Scheduling and batch overhead set a floor:** Consistently very low tail latency is difficult to achieve.
+- **Updates arrive in steps:** Results usually refresh when each batch completes.
+- **Bursts can cause delays:** Larger batches make later batches wait, increasing latency further.
 
-**典型场景**：近实时看板、分钟级聚合、趋势分析、秒级到十几秒级的业务指标。若要求“15 秒内刷新”，需要验证高峰期的**端到端延迟**，不能只把触发间隔设成 5 秒。
+**Typical use cases:** Near-real-time dashboards, minute-level aggregates, trend analysis, and business metrics with a latency target from a few seconds to tens of seconds. If the target is “refresh within 15 seconds,” measure **end-to-end latency** under peak load; a 5-second trigger interval alone does not guarantee it.
 
-## 3. 流处理 Streaming
+## 3. Stream Processing
 
-典型工具：Apache Flink、Kafka Streams。Apache Beam 是统一的编程模型，可由不同执行引擎运行。
+Typical tools: Apache Flink and Kafka Streams. Apache Beam is a unified programming model that can run on different execution engines.
 
-**做法**：持续消费无边界事件流，增量更新状态与聚合结果。引擎可以逐条处理，也可能在内部做缓冲或批量传输；关键是应用不必等待一个固定的大批次结束。
+**How it works:** Continuously consume an unbounded event stream and incrementally update state and aggregates. An engine may process records one at a time or buffer and transfer them in batches internally. The important point is that the application does not need to wait for a fixed, large batch to finish.
 
-**核心特征**
+**Key characteristics**
 
-- 计算长期运行，状态保存窗口、去重集合、连接结果等中间信息。
-- 事件时间（event time）描述事件实际发生的时间；水位线（watermark）表示系统对处理进度的判断。
-- 检查点（checkpoint）帮助故障后恢复状态和消费位置。输出正确性还取决于下游写入方式。
+- Long-running computations keep state for intermediate information such as windows, deduplication sets, and join results.
+- Event time describes when an event actually happened. A watermark represents the system's estimate of how far event-time processing has progressed.
+- Checkpoints help restore state and input positions after a failure. Output correctness also depends on how data is written downstream.
 
-**优势**
+**Advantages**
 
-- **延迟低**：适合亚秒到数秒级更新，具体尾延迟仍受流量、状态大小和下游系统影响。
-- **时间语义丰富**：窗口、乱序事件、迟到事件的修正更自然。
-- **适合复杂有状态计算**：会话窗口、去重、流连接、动态 Top K 等。
+- **Low latency:** Suitable for updates in subsecond to seconds ranges, though tail latency still depends on traffic, state size, and downstream systems.
+- **Rich time semantics:** Windows, out-of-order events, and corrections for late events fit naturally into the model.
+- **Good for complex stateful computation:** Examples include session windows, deduplication, stream joins, and dynamic Top K calculations.
 
-**劣势**
+**Disadvantages**
 
-- **工程与运维门槛高**：需要处理状态膨胀、检查点、背压、热点、状态迁移和版本升级。
-- **端到端 exactly-once 不会自动成立**：计算状态恢复之外，下游还需事务写入、幂等 Upsert 或去重机制。
-- **持续占用资源**：作业通常常驻运行，扩缩容时还要迁移状态。
+- **Higher engineering and operational demands:** Teams must manage state growth, checkpoints, backpressure, hot keys, state migration, and upgrades.
+- **End-to-end exactly-once does not happen automatically:** In addition to recovering computation state, downstream writes need transactions, idempotent upserts, or deduplication.
+- **Resources are continuously in use:** Jobs usually run all the time, and scaling them may require state migration.
 
-**典型场景**：实时风控、反作弊、实时计费或预算控制、告警、在线特征、秒级看板。
+**Typical use cases:** Real-time risk detection, fraud prevention, billing or budget control, alerts, online features, and second-level dashboards.
 
-## 三种处理方式对比
+## Comparing the Three Approaches
 
-| 维度 | 批处理 Batch | 微批处理 Micro-batch | 流处理 Streaming |
+| Dimension | Batch | Micro-batch | Streaming |
 | --- | --- | --- | --- |
-| 端到端延迟 | 通常分钟到小时 | 通常秒级，随批次与积压变化 | 通常亚秒到数秒，取决于系统设计 |
-| 吞吐与单位成本 | 大规模离线扫描效率高 | 较高，但有批次调度成本 | 可很高，但状态、网络和背压更关键 |
-| 工程复杂度 | 低到中 | 中 | 高 |
-| 正确性 | 容易用历史数据重算和对账 | 可重试批次；仍要处理重复输出 | 可实现强保证；需状态、输入与下游协同 |
-| 迟到与乱序 | 重算时可纳入历史事件 | 可用事件时间处理，受引擎能力和配置影响 | 适合事件时间、水位线和迟到修正 |
-| 资源形态 | 定时任务，可弹性使用资源 | 持续调度小批次 | 常驻作业，扩缩容可能迁移状态 |
-| 故障恢复 | 重跑任务 | 重跑失败批次 | 从检查点恢复，并处理输出重放 |
-| 典型输出 | T+1 报表、离线训练、最终对账 | 秒级看板、实时趋势 | 风控、计费、在线特征、低延迟 Top K |
+| End-to-end latency | Usually minutes to hours | Usually seconds; varies with batch duration and backlog | Usually subsecond to seconds; depends on system design |
+| Throughput and unit cost | Efficient for large offline scans | High, with some batch scheduling overhead | Can be high; state, networking, and backpressure matter more |
+| Engineering complexity | Low to medium | Medium | High |
+| Correctness | Easy to recompute and reconcile from historical data | Batches can be retried; duplicate output still needs handling | Strong guarantees are possible when state, input, and sinks work together |
+| Late and out-of-order events | Can be included during recomputation | Event time is possible, subject to engine capabilities and configuration | Well suited to event time, watermarks, and late-event corrections |
+| Resource model | Scheduled jobs can use elastic resources | Continuously schedules small batches | Long-running jobs; scaling may move state |
+| Failure recovery | Rerun the job | Rerun a failed batch | Restore from a checkpoint and handle output replay |
+| Typical output | Daily reports, offline training, final reconciliation | Second-level dashboards and live trends | Risk detection, billing, online features, low-latency Top K |
 
-这些延迟是常见量级，**不是工具自带的 SLA**。实际表现需要把事件产生、采集、排队、计算和写入查询系统的时间一起测量。
+These latency ranges are common, **not SLAs guaranteed by a tool**. Measure the full path from event creation and ingestion through queuing and computation to writes in the query system.
 
-## Lambda 与 Kappa 架构
+## Lambda and Kappa Architectures
 
-**Lambda 架构**并行维护快链路和批链路：流处理先给出近实时结果，批处理定期从原始数据重算，再修正或覆盖快链路的输出。
+**Lambda architecture** maintains a fast path and a batch path in parallel. Stream processing produces a near-real-time result first; batch processing periodically recomputes from raw data and then corrects or replaces the fast-path output.
 
-**Kappa 架构**以流处理为主要计算链路：需要重算时，从可回放的历史事件日志重新运行流作业。它通常仍需要可靠的历史存储、状态管理和结果替换机制。
+**Kappa architecture** uses stream processing as its primary computation path. When recomputation is needed, the system replays historical events through the stream job. It still needs reliable historical storage, state management, and a way to replace results.
 
-| 问题 | Lambda | Kappa |
+| Concern | Lambda | Kappa |
 | --- | --- | --- |
-| 计算逻辑 | 批与流两套作业，可能发生指标口径漂移 | 尽量复用一套流逻辑，但回放也要兼容历史数据 |
-| 重算方式 | 从原始数据全量或分区重算 | 回放保留的事件日志，重新构建状态与输出 |
-| 结果合并 | 需要定义批结果如何覆盖流结果 | 需要隔离回放结果，并在验证后切换版本 |
-| 资源峰值 | 定时批任务形成峰值 | 大规模回放可能与在线作业争抢资源 |
-| 适用倾向 | 审计、对账、历史重算很重要 | 日志可长期回放，流逻辑易于复用 |
+| Computation logic | Separate batch and stream jobs can drift in metric definitions | Tries to reuse one stream implementation, which must still support historical data |
+| Recalculation | Recompute all or selected partitions from raw data | Replay retained event logs to rebuild state and output |
+| Result merging | Define how batch results replace stream results | Isolate replay output and switch versions after validation |
+| Resource peaks | Scheduled batch jobs create peaks | Large replays may compete with online processing |
+| Tends to fit when | Auditing, reconciliation, and historical recomputation matter | Logs can be replayed long enough and stream logic is reusable |
 
-### 正确性与可审计性
+### Correctness and Auditability
 
-Lambda 的批链路可以从**原始不可变数据**重新计算，因此适合计费对账和审计。不过，批任务只能修正已保存的数据；如果事件在采集前就丢失，重算也无法恢复。
+Lambda's batch path can recompute from **immutable raw data**, which makes it useful for billing reconciliation and audits. A batch job can only correct data that was retained; it cannot recover an event that was lost before ingestion.
 
-Kappa 要获得可比较的正确性，需要足够长的日志保留期、可重复运行的计算逻辑，以及支持幂等或事务的输出。回放时还要考虑 schema 演进和外部依赖：如果计算读取了会变化的用户资料或配置，同一批旧事件未必会得到相同结果。
+For Kappa to achieve comparable correctness, logs must be retained long enough, computation must be repeatable, and output must support idempotency or transactions. Replay also needs to account for schema evolution and external dependencies. If computation reads user profiles or configuration that has since changed, replaying the same old events may produce a different result.
 
-### 重算与回填
+### Recalculation and Backfills
 
-- **Lambda**：批任务适合大范围历史扫描，但批结果与实时结果的合并需要明确主键、版本与覆盖顺序，避免旧结果覆盖新结果。
-- **Kappa**：回放可复用流逻辑，但应隔离在线流量；通常先写入独立的结果版本，验证完成后再切换读流量，避免重算中的中间结果对外可见。
+- **Lambda:** Batch jobs are suited to large historical scans, but merging batch and live results requires clear keys, versions, and replacement order so an older result does not overwrite a newer one.
+- **Kappa:** Replay reuses stream logic, but should be isolated from online traffic. A common approach is to write a separate result version, validate it, and then switch readers over so intermediate replay results are not exposed.
 
-### 如何选择
+### How to Choose
 
-1. **先看延迟目标**：每日出报表用批处理；秒级看板可以先评估微批；亚秒或复杂实时状态通常考虑流处理。
-2. **再看能否重算**：原始数据是否完整、事件日志保留多久、历史 schema 是否可读，决定故障后能否修正结果。
-3. **定义输出语义**：重复事件如何去重，迟到事件如何修正，失败重试是否会重复写入，下游查询何时看到新版本。
-4. **用高峰流量验证**：观察积压、端到端延迟、状态大小、检查点耗时以及重算所需时间。
+1. **Start with the latency target:** Use batch for daily reports; evaluate micro-batches for second-level dashboards; consider streaming for subsecond needs or complex real-time state.
+2. **Check whether results can be recomputed:** Data completeness, event-log retention, and historical schema compatibility determine whether results can be corrected after a failure.
+3. **Define output semantics:** Decide how to deduplicate events, correct late arrivals, avoid duplicate writes after retries, and expose new result versions to readers.
+4. **Validate at peak traffic:** Monitor backlog, end-to-end latency, state size, checkpoint duration, and the time required for a replay.
 
-很多系统会混合使用三种方式：流处理提供即时结果，批处理负责离线分析或审计，微批处理承担中间延迟要求。关键是让每条链路的结果口径与职责清晰。
+Many systems combine all three approaches: streaming provides immediate results, batch processing supports offline analysis and audits, and micro-batches serve workloads with intermediate latency needs. Keep each path's result definitions and responsibilities clear.
