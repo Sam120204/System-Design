@@ -12,6 +12,7 @@ System-Design/
 │   └── images/          # Web 笔记引用的架构图
 ├── Asychronous/         # 异步处理与消息系统
 ├── Instant Messaging System/  # IM 系统设计与数据分片
+├── Derived Data System/       # 派生数据系统
 ├── 数据密集系统/          # 架构权衡、数据模型与系统设计案例
 │   └── assets/          # 系统设计案例的架构图
 └── Kubernetes/          # 容器编排与部署实践
