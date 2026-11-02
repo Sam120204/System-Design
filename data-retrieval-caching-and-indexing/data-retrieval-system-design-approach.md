@@ -1,80 +1,134 @@
 # Data Retrieval: A System Design Approach
 
-Choose a retrieval structure by starting with the query, not the data structure. Three useful questions are:
+Start with the query requirements, then choose the data structure. Three questions help narrow the options:
 
-1. **What access pattern matters?** Exact-key lookup favors hashing; ordered scans and ranges favor search trees or skip lists; prefix, text, spatial, and similarity queries need structures built for those operations. A heap maintains only the next minimum or maximum, not a fully searchable order.
-2. **How much of the data must the structure cover?** A cache may hold only hot items and can miss. An index is maintained for the rows and fields it covers, though a particular query may not be able to use it. Partial indexes are an explicit exception to full row coverage.
-3. **What shape is the data?** A single ordered key, multiple spatial dimensions, text terms, and graph relationships call for different representations.
+1. **Does the query need ordering?**
+   - Ordered lookups, range queries, and sorted scans favor search trees or skip lists.
+   - Exact-key lookups favor hash tables; ordinary arrays and linked lists do not maintain sorted order automatically.
+   - Heaps maintain a minimum or maximum rather than a fully sorted sequence. Spatial and inverted indexes organize data for specialized queries, so they do not fit neatly into an ordered/unordered split.
 
-Also consider read/write ratio, memory budget, update cost, and whether the structure must survive a restart.
+2. **Does the structure cover the full dataset or only a hot subset?**
+   - Database indexes, inverted indexes, and LSM storage structures generally cover the data they are defined to maintain. Partial indexes deliberately cover only selected records.
+   - Caches often keep a hot subset and can miss. Hash tables are common, with additional structures for expiration or eviction.
 
-## 1. Sequential Structures: Arrays, Lists, and Skip Lists
+3. **What shape does the data have?**
+   - **One-dimensional:** A single key or sequence, using ordinary indexes, arrays, or lists.
+   - **Multidimensional / spatial:** Coordinates or geographic regions, using k-d trees, R-trees, QuadTrees, or GeoHash.
+   - **Graph:** Relationships modeled explicitly as nodes and edges.
 
-- **Array:** Fast access by position; searching an unsorted array is a linear scan. A sorted array supports binary search but makes insertion expensive.
-- **Linked list:** Cheap insertion or removal when the location is known; finding an item is generally a linear scan.
-- **Skip list:** Layered links provide expected **O(log n)** search and update while preserving sorted order. It is useful for ranked sets and in-memory ordered indexes.
+Also consider read/write ratio, memory budget, update cost, and recovery requirements.
 
-**Design examples:** Auction listings; game leaderboards.
+## 1. Sequential Structures: Arrays, Linked Lists, and Skip Lists
 
-## 2. Ordered Trees and Priority Structures
+**Main idea:** Arrays and linked lists organize a sequence; positions or pointers identify elements. Skip lists add layers of links to support efficient ordered search.
 
-- **Balanced binary search trees** such as AVL and red-black trees support **O(log n)** lookup and update, plus ordered iteration.
-- **B-trees and B+ trees** pack many keys into each page, keeping disk-based indexes shallow. B+ trees are common in database indexes and file systems.
-- **Segment trees and Fenwick trees** answer range aggregates efficiently. Fenwick trees are especially suited to prefix sums; segment trees can support sums, minima, maxima, and other associative aggregates.
-- **Heaps / priority queues** expose the minimum or maximum in **O(1)** and support insertion and removal of the top item in **O(log n)**. They do not support general range queries efficiently.
+- **Array:** Fast access by index. Searching an unsorted array requires a linear scan; a sorted array supports binary search but makes insertion expensive.
+- **Linked list:** Efficient insertion or removal when the location is known, but finding an element generally requires a linear scan.
+- **Skip list:** Maintains sorted order with expected **O(log n)** search, insertion, and deletion. Useful for in-memory ordered indexes and ranked sets.
 
-**Design examples:** Ranked statistics; cron schedulers and delayed-job queues. A timing wheel is another scheduling option with different tradeoffs.
+**Design examples:**
+
+- Design Auction System.
+- [Design Game Scoreboard / Leaderboard — Meta](design-game-scoreboard.md).
+
+## 2. Trees and Priority Structures
+
+**Main idea:** Search trees maintain key order for lookup and range scans; aggregate trees and heaps optimize different operations.
+
+- **Binary search tree / balanced tree:** AVL and red-black trees keep lookup and updates at **O(log n)** while supporting ordered traversal.
+- **B-tree / B+ tree:** Stores many keys in each node, making the tree shallow and suitable for disk pages. Common in database and file-system indexes.
+- **Segment tree / Fenwick tree (BIT):** Supports range statistics. Fenwick trees are especially useful for prefix sums; segment trees can support sums, minima, maxima, and other aggregates. Applications include online statistics, monitoring, and ranking counts.
+- **Heap / priority queue:** Optimized for the next minimum or maximum. Peeking at the top is **O(1)**; insertion and removing the top are **O(log n)**. A heap does not support general range queries efficiently.
+
+**Design examples:**
+
+- Design Cron Job Scheduler.
+- Design Delayed Job Queue.
+
+A timing wheel is another option for timers and scheduling; it does not require a heap.
 
 ## 3. Hash-Based Structures
 
-- **Hash table:** Average **O(1)** exact-key lookup; common in caches, key-value stores, and language maps. It does not preserve key order.
-- **Hash index:** Supports equality lookups but usually not range scans.
-- **Consistent hashing:** Maps keys and nodes onto a logical ring to limit key movement when nodes join or leave. It is a sharding strategy rather than a local lookup index.
+**Main idea:** Optimize exact-key lookup, usually with average **O(1)** access, without preserving key order.
 
-**Design examples:** Distributed cache; URL shortener; rate limiter.
+- **Hash table:** Common in caches, key-value stores, and language dictionaries or maps.
+- **Consistent hashing / hash ring:** Maps keys and servers onto a logical ring to reduce key movement when servers join or leave. This is a distributed sharding strategy rather than a local lookup index.
+- **Hash index:** Supports equality lookups but generally does not help with ordered range scans.
 
-## 4. Prefix Structures: Tries and Radix Trees
+**Design examples:**
 
-- **Trie:** Organizes keys by character or bit prefix, making prefix lookup natural. Common uses include autocomplete and IP routing.
-- **Radix / Patricia tree:** Compresses chains of single-child trie nodes to reduce space. Adaptive radix trees (ART) add node layouts that adapt to the number of children.
+- Design Distributed Cache.
+- Design URL Shortener.
+- Design Rate Limiter.
 
-**Design example:** Autocomplete and search suggestions.
+## 4. Prefix Structures: Trie, Radix Tree, and Variants
+
+**Main idea:** Organize keys by character or bit prefix to support prefix matching.
+
+- **Trie:** Each path represents a sequence of characters or bits. Useful for autocomplete, prefix matching, and IP routing tables.
+- **Radix tree / Patricia tree:** Compresses chains of nodes to reduce memory use.
+- **Adaptive Radix Tree (ART):** Also adapts node layouts to the number of children, improving space usage and lookup efficiency.
+
+These structures appear in routing systems and some in-memory indexes and key-value engines.
+
+**Design example:** Design Autocomplete / Search Suggestions.
 
 ## 5. Bitsets and Bitmap Indexes
 
-- **Bitset / bitmap:** Bit `i` indicates whether item `i` belongs to a set. Bitwise operations make intersection and union fast, especially over dense integer ID ranges.
-- **Compressed bitmap:** Formats such as Roaring choose representations for different containers, often saving space while retaining fast set operations. Bitmap indexes are useful in analytical queries.
+**Main idea:** Represent membership with bits and perform set operations efficiently.
 
-**Design examples:** Permission sets; online-presence tracking; crawler URL deduplication after URLs are mapped to integer IDs.
+- **Bitset / bitmap:** Bit `i = 1` means item `i` belongs to the set. Useful for permission sets, online/offline flags, and fast intersections or unions. Space efficiency depends on the size and density of the ID range.
+- **Compressed bitmap, such as Roaring:** Uses different representations for sparse and dense containers to save space while retaining fast set operations. Common in analytical databases and OLAP bitmap indexes.
 
-## 6. Graph Structures
+**Design example:** Crawler URL Deduplication, after URLs are mapped to suitable IDs. A bitmap alone does not establish whether two raw URLs are identical; the mapping must handle collisions if exact deduplication is required.
 
-- **Adjacency list:** Stores each node's neighbors; efficient for sparse graphs and neighborhood traversal.
-- **Adjacency matrix:** Stores edges in a two-dimensional array; fast edge checks but potentially **O(V²)** space.
-- **Specialized graph indexes:** Precomputed structures can accelerate particular graph queries. HNSW, for example, uses a navigable graph for approximate nearest-neighbor search over vectors.
+## 6. Graph Structures: Nodes and Edges
 
-**Design example:** “People You May Know” or follow recommendations.
+**Main idea:** Model relationships directly so that neighborhood traversal and connectivity queries are natural.
 
-## 7. Text Search Structures
+- **Adjacency list:** Each node stores its neighbors. Efficient for sparse graphs and traversing relationships.
+- **Adjacency matrix:** A two-dimensional array records whether an edge exists or stores its weight. Edge lookup is fast, but space usage is **O(V²)**.
+- **Specialized graph indexes:** Precomputed structures can accelerate shortest-path or reachability queries. HNSW uses a navigable graph for approximate nearest-neighbor search over vectors.
 
-- **Inverted index:** Maps each term to a posting list of document IDs, often with positions or scores. It is the core of full-text search systems such as Elasticsearch and Solr.
-- **Suffix array / suffix tree:** Supports substring search within text, usually in specialized workloads rather than a general web search index.
+Applications include social relationships, recommendations, and route planning.
 
-**Design example:** Search posts on a social platform.
+**Design examples:** People You May Know / Follow Recommendation.
+
+## 7. Search and Text Structures
+
+**Main idea:** Support lookup from a keyword or text pattern to matching documents.
+
+- **Inverted index:** Maps each term to a posting list of document IDs, often with positions or scoring information. It is the core of full-text search engines such as Elasticsearch and Solr.
+- **Suffix array / suffix tree:** Supports substring matching within text. More common in specialized text-processing workloads than in general web search indexes.
+
+**Design example:** Design Twitter Search.
 
 ## 8. Spatial and Multidimensional Structures
 
-- **k-d tree:** Partitions a low-dimensional space for range and nearest-neighbor queries; performance can degrade as dimensions grow.
-- **R-tree / quadtree:** Groups spatial regions for bounding-box and nearby-object queries.
-- **Grid or Geohash buckets:** Maps locations into cells for a simple nearby-candidate search, followed by an exact distance check.
+**Main idea:** Organize coordinates and regions for nearby, range, and nearest-neighbor queries.
 
-**Design examples:** Nearby restaurants, ride matching, food delivery, and nearby friends.
+- **k-d tree:** Divides a k-dimensional space. Useful for low-dimensional nearest-neighbor and range queries; performance can degrade as dimensions grow.
+- **R-tree:** Groups objects by bounding rectangles. Common in GIS, maps, and spatial range queries.
+- **QuadTree:** Recursively divides a two-dimensional region into four cells. Useful for indexing points and adapting cell sizes to spatial density.
+- **Grid / GeoHash buckets:** Maps locations into cells. Query the cells covering a search area, then apply exact distance filtering.
 
-## 9. Logs and LSM Trees
+**Design examples:**
 
-- **Append-only log:** Records writes sequentially. Write-ahead logs (WALs) support recovery; event logs such as Kafka also support replay and consumption.
-- **LSM tree:** Buffers writes in an ordered in-memory **MemTable**, flushes sorted **SSTables** to disk, and compacts them in the background. Reads may inspect multiple levels, so Bloom filters and block caches help control read cost. RocksDB, LevelDB, HBase, and TiKV use LSM-based storage engines.
+- [Design Yelp / 大众点评](design-yelp.md).
+- Design Uber.
+- Design Food Delivery.
+- Nearby Friends.
 
-**Design examples:** Write-heavy key-value storage and the storage layer of a distributed message queue.
+## 9. Append-Only Logs and LSM Trees
 
-The best choice is usually a combination: for example, a cache for repeated reads, a B+ tree or LSM index for durable lookup, and a specialized index for text or location queries.
+**Main idea:** Favor sequential writes. Logs preserve a sequence of records; LSM trees organize buffered updates into sorted files that are merged over time.
+
+- **Append-only log:** Appends records sequentially. Database write-ahead logs (WALs) support recovery; event logs such as Kafka also support replay and consumption.
+- **LSM tree (Log-Structured Merge Tree):** Buffers updates in an ordered in-memory MemTable, often implemented with a skip list or tree. Flushes create sorted on-disk SSTables, and background compaction merges files. A WAL commonly protects updates that have not yet been flushed.
+- **Read tradeoff:** Reads may need to inspect the MemTable and multiple files or levels. Bloom filters and block caches help reduce this work.
+
+LevelDB, RocksDB, HBase, and TiKV use LSM-based storage engines. LSM trees still update memory and rewrite files during compaction; “append-only” describes the log more directly than the whole storage engine.
+
+**Design example:** Design Distributed Message Queue. An append-only log is a natural foundation; an LSM engine can support metadata or indexed state, depending on the design.
+
+Real systems often combine several families: a hash-based cache for repeated reads, a B+ tree or LSM engine for durable data, and a spatial or text index for specialized retrieval.

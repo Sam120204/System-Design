@@ -39,6 +39,10 @@ System-Design/
 
 [Overview](data-retrieval-caching-and-indexing/overview.md) covers storage access latency, cache hits and expiration, B+ tree and LSM tree access paths, and the different roles of caches and indexes. [System Design Approach](data-retrieval-caching-and-indexing/data-retrieval-system-design-approach.md) maps retrieval requirements to common data structures and design examples.
 
+[案例分析：Design Game Scoreboard — Meta](data-retrieval-caching-and-indexing/design-game-scoreboard.md) 根据手绘设计图梳理 Redis Sorted Set、全局排名与分片、Outbox / CDC 一致性、持久化恢复和排行榜热点。
+
+[Design Yelp / 大众点评](data-retrieval-caching-and-indexing/design-yelp.md) covers nearby business search with an in-memory QuadTree, hourly index rebuilds and seed recovery, plus a GeoHash alternative.
+
 ## 异步处理与消息系统（Asynchronous Processing and Messaging）
 
 | 笔记（Note） | 内容（Topics） |
