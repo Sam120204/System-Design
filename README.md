@@ -37,7 +37,7 @@ System-Design/
 
 ## Data Retrieval: Caching and Indexing
 
-[Overview](data-retrieval-caching-and-indexing/overview.md) covers storage access latency, cache hits and expiration, B+ tree and LSM tree access paths, and the different roles of caches and indexes.
+[Overview](data-retrieval-caching-and-indexing/overview.md) covers storage access latency, cache hits and expiration, B+ tree and LSM tree access paths, and the different roles of caches and indexes. [System Design Approach](data-retrieval-caching-and-indexing/data-retrieval-system-design-approach.md) maps retrieval requirements to common data structures and design examples.
 
 ## 异步处理与消息系统（Asynchronous Processing and Messaging）
 
