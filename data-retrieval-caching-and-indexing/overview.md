@@ -1,66 +1,66 @@
-# 数据检索：缓存与索引
+# Data Retrieval: Caching and Indexing
 
-当数据集从 GB 增长到 TB 级别，磁盘 I/O 往往成为查询瓶颈。一个常见的优化思路是：**减少慢速存储访问，让热点数据或查找路径尽量留在内存中。** 缓存和索引分别从不同角度实现这一点。
+As datasets grow from gigabytes to terabytes, disk I/O often becomes a query bottleneck. A common optimization is to **reduce slow storage access by keeping hot data or frequently used lookup paths in memory**. Caches and indexes do this in different ways.
 
-## 一、访问延迟的阶梯
+## 1. The Access Latency Ladder
 
-以下数字仅用于建立数量级直觉；实际延迟受硬件、负载和访问方式影响：
+These figures are rough orders of magnitude. Actual latency depends on the hardware, workload, and access pattern.
 
-| 存储层级 | 典型访问延迟 |
+| Storage tier | Typical access latency |
 | --- | ---: |
-| L1 Cache | 约 0.5–1 ns |
-| RAM | 约 100 ns |
-| NVMe SSD 随机读取 | 约 10–100 µs |
-| HDD 随机读取 | 约 5–10 ms |
+| L1 cache | ~0.5–1 ns |
+| RAM | ~100 ns |
+| NVMe SSD random read | ~10–100 µs |
+| HDD random read | ~5–10 ms |
 
-即使 NVMe SSD 很快，一次随机读取仍通常比内存访问慢几个数量级。
+Even a fast NVMe SSD usually takes orders of magnitude longer than RAM for a random read.
 
-## 二、缓存：用内存保存热点数据
+## 2. Caching: Keeping Hot Data in Memory
 
-Web 系统中的缓存常见于进程内 `HashMap`、Redis、Memcached 等。它们通常用哈希表支持按 Key 查找 Value，但一次完整的缓存请求还可能涉及网络传输、序列化等开销。
+Web systems commonly use in-process `HashMap`s, Redis, or Memcached as caches. They typically use hash tables to find a value by key, although a complete cache request may also incur network and serialization costs.
 
-### 1. 快速查找
+### Fast lookups
 
-哈希表的平均查找复杂度是 **O(1)**：数据量增长时，单次查找所需的步骤通常不会随之增长。实际性能仍会受哈希冲突、扩容和缓存系统的其他开销影响。
+The average lookup complexity of a hash table is **O(1)**: the number of lookup steps usually stays roughly constant as the dataset grows. Hash collisions, resizing, and other cache-system overhead still affect real performance.
 
-### 2. 命中、未命中与容量
+### Hits, misses, and capacity
 
-内存有限，缓存一般只保存数据的热点子集：
+Memory is limited, so a cache usually holds only a hot subset of the data:
 
-- **Hit（命中）**：数据在缓存中，直接返回。
-- **Miss（未命中）**：数据不在缓存中，需要回源到数据库或其他存储。命中率越高，通常能省下越多回源请求。
+- **Hit:** The item is in the cache and can be returned directly.
+- **Miss:** The item is absent, so the system must fetch it from the database or another source. A higher hit rate generally means fewer requests reach that source.
 
-空间不足时，缓存需要**驱逐策略**，例如 LRU（Least Recently Used）优先移除最久未使用的数据。**TTL（Time To Live）** 则规定条目何时过期，主要用于控制数据的新鲜度；它可以帮助释放空间，但不等同于容量驱逐策略。
+When space runs low, an **eviction policy** chooses what to remove. For example, LRU (Least Recently Used) removes items that have not been accessed recently. **TTL (Time To Live)** specifies when an item expires, primarily to limit staleness. Expiration can free space, but it is not the same as capacity-based eviction.
 
-## 三、索引：缩短磁盘上的查找路径
+## 3. Indexing: Shortening the Search Path
 
-哈希查找擅长精确匹配，但无序的哈希表不适合范围查询。数据库索引通常要支持更大的数据集，以及范围查询、排序等访问方式。索引本身也可以持久化在磁盘上，不要求全部放进内存。
+Hash lookups are good for exact matches, but an unordered hash table is a poor fit for range queries. Database indexes can support larger datasets, range queries, and ordered access. The index itself can live on disk; it does not all have to fit in memory.
 
-### 1. B+ 树：内存中的路标
+### B+ trees: Signposts in memory
 
-B+ 树是关系型数据库中常见的索引结构：
+B+ trees are a common index structure in relational databases:
 
-- **内部节点**保存用于导航的 Key 和子节点指针。
-- **叶子节点**保存索引条目；条目可以包含数据，也可以指向数据行，取决于索引类型。
+- **Internal nodes** hold keys and child pointers used for navigation.
+- **Leaf nodes** hold index entries, which may contain the data or pointers to rows, depending on the index type.
 
-树的扇出很高，因此即使有大量记录，树通常也只有少数几层。以 MySQL InnoDB 为例，索引页持久化在磁盘上，根节点和常访问的内部节点通常会被 Buffer Pool 缓存。查找时先沿这些节点定位叶子页；若叶子页不在内存中，就需要磁盘 I/O。二级索引查询还可能需要根据主键再取一次数据页，因此不能保证每次查询只读一个磁盘页。
+Each node can have many children, so even a large index is usually only a few levels deep. In MySQL InnoDB, index pages are persisted on disk, while the root and frequently accessed internal pages are often kept in the Buffer Pool. A lookup follows these pages to a leaf. If that leaf page is not cached, it requires disk I/O. A secondary-index lookup may also need to fetch a data page using the primary key, so one query is not guaranteed to need only one disk read.
 
-### 2. 为什么说索引是“空间换时间”？
+### Why is an index a space-for-time tradeoff?
 
-索引占用额外的存储空间，也带来写入维护成本；回报是数据库可以按索引定位相关的**页**，避免为选择性高的查询扫描大量无关数据。全表扫描并非总是坏事：当查询需要表中大部分数据时，它可能更合适。
+An index uses extra storage and adds maintenance work to writes. In return, the database can locate relevant **pages** without scanning many unrelated pages for a selective query. A full table scan can still be the better choice when a query needs most of the table.
 
-### 3. LSM 树：优化写入路径
+### LSM trees: Optimizing the write path
 
-与直接更新磁盘上的有序树不同，LSM 树把新数据先写入内存中的 **MemTable**，再批量刷写为磁盘上的 **SSTable**，并在后台合并。实际系统还会用日志保证内存中尚未刷盘的数据在故障后可恢复。
+Instead of updating an ordered structure on disk for every write, an LSM tree first writes new data to an in-memory **MemTable**. It then flushes data in batches to on-disk **SSTables** and merges those files in the background. Real systems also use a log to recover writes that were still in memory when a failure occurred.
 
-这种方式将许多随机更新转为批量写入，但读取可能要检查 MemTable 和多个 SSTable。Bloom Filter 可跳过部分肯定不含目标 Key 的文件。LSM 树常用于写入密集的场景，代价包括读放大和合并开销。
+This turns many random updates into batched writes, but reads may have to check the MemTable and multiple SSTables. Bloom filters can skip files that definitely do not contain the requested key. LSM trees are often useful for write-heavy workloads, at the cost of read amplification and background compaction.
 
-## 四、缓存 vs 索引
+## 4. Caching vs. Indexing
 
-| | 缓存 | 索引 |
+| | Cache | Index |
 | --- | --- | --- |
-| 保存什么 | 可丢弃、可重建的热点数据副本 | 与底层数据一起维护的查找结构 |
-| 查不到时 | 缓存未命中，回源查询 | 索引中没有匹配项，或查询条件无法利用该索引 |
-| 主要用途 | 降低重复请求的延迟和数据库负载 | 在大量数据中定位记录，支持范围查询、排序等 |
+| What it stores | A disposable, rebuildable copy of hot data | A lookup structure maintained with the underlying data |
+| When a lookup finds nothing | Cache miss; fetch from the source | No matching index entry, or the query cannot use that index |
+| Main purpose | Reduce latency and database load from repeated requests | Locate records in large datasets; support range queries and ordering |
 
-一句话概括：**缓存减少重复读取，索引减少每次读取需要搜索的数据量。** 两者通常配合使用。
+In short, **caching reduces repeated reads; indexing reduces how much data each read must search**. Systems often use both.

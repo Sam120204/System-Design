@@ -13,7 +13,7 @@ System-Design/
 ├── Asychronous/         # 异步处理与消息系统
 ├── Instant Messaging System/  # IM 系统设计与数据分片
 ├── Derived Data System/       # Derived data systems
-├── data-retrieval-caching-and-indexing/  # 缓存与索引
+├── data-retrieval-caching-and-indexing/  # Caching and indexing
 ├── 数据密集系统/          # 架构权衡、数据模型与系统设计案例
 │   └── assets/          # 系统设计案例的架构图
 └── Kubernetes/          # 容器编排与部署实践
@@ -35,9 +35,9 @@ System-Design/
 | [延迟优化案例（Latency Optimization）](<web development/延迟优化案例.md>) | 社交时间线、缓存、消息队列与异步 Fan-out |
 | [System Design 术语速记（Terminology）](<web development/terminology.md>) | 常用中英文术语及一句话解释 |
 
-## 数据检索：缓存与索引（Data Retrieval: Caching and Indexing）
+## Data Retrieval: Caching and Indexing
 
-[概览](data-retrieval-caching-and-indexing/overview.md) 介绍存储访问延迟、缓存命中与过期、B+ 树和 LSM 树的查找与写入路径，以及缓存和索引各自解决的问题。
+[Overview](data-retrieval-caching-and-indexing/overview.md) covers storage access latency, cache hits and expiration, B+ tree and LSM tree access paths, and the different roles of caches and indexes.
 
 ## 异步处理与消息系统（Asynchronous Processing and Messaging）
 
