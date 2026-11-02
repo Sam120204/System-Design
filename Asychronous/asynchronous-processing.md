@@ -259,117 +259,69 @@ OrderPaid → orders Topic
 
 托管服务之间不应仅按产品名对应。云平台、投递方式、保留需求和集成目标都会影响选择。
 
-### 5.2 事件流平台（Event Streaming Platforms）
+### 5.2 RabbitMQ, RocketMQ, and Kafka: the simple picture
 
-#### 5.2.1 Apache Kafka：保留事件历史，让多个系统独立读取
+Think of a message broker as a parcel station: a sender drops off a parcel, and a receiver picks it up later. In software, a **producer** sends a message to the broker, and a **consumer** processes it. This lets a request finish sooner (**asynchronous work**), keeps services from calling every downstream service directly (**decoupling**), and buffers sudden traffic spikes. Accepting a message is only the start: the system must still handle delivery, processing failures, and retries.
 
-**模型：生产者 → 分区化的主题日志（Partitioned Topic Log）→ 多个消费者组（Consumer Groups）。**
-
-Kafka 的核心是追加日志（Append-only Log）：消息被读过之后，通常仍会保留到配置的时间或容量限制；启用日志压缩（Log Compaction）的主题则可以按键保留最新状态，而不保存每次历史变化。
-
-- **分区（Partition）**：一个 Topic 拆成多个分区以并行读写。顺序保证在单个分区内，不跨所有分区。
-- **偏移量（Offset）**：消费者记录自己读到哪里。处理完成后提交消费位置（Offset Commit），不是删除消息。
-- **消费者组（Consumer Group）**：不同组独立读取同一 Topic。在传统 Consumer Group 模型下，同一组内每个分区同一时刻由一个消费者负责；例如 6 个分区、10 个消费者，最多 6 个消费者同时获配分区。
-- **重放（Replay）**：把消费位置移回去，或创建一个从历史位置开始的新消费者组，重新处理仍在保留范围内的事件。
-- **生态（Ecosystem）**：Kafka Connect 连接数据库和其他数据源／目标；Kafka Streams 处理事件流；CDC 工具可以把数据库变化发布到 Kafka。
-- **Exactly-once 的边界**：Kafka 事务和流处理工具可以在支持的 Kafka 读写范围内提供相应保证。跨到外部数据库、邮件或支付服务时，仍需考虑幂等和事务边界。
-
-**具体例子**：网站把 `PageViewed`、`ProductClicked`、`OrderPaid` 写入 Kafka。实时风控、销售报表和推荐系统各用一个消费者组独立读取。一个月后新增分析算法，可以重读保留的历史事件，不需要让原业务重新产生它们。
-
-**代价**：需要设计分区键（Partition Key）、分区数量、复制（Replication）、保留期和消费者重平衡（Rebalancing）。即使用托管 Kafka，也仍需管理这些应用层决策。
-
-#### 5.2.2 Redpanda：使用 Kafka API 的另一种事件流实现
-
-Redpanda 同样提供 Topic、Partition、Offset 和 Consumer Group，面向持久化事件流。它实现 Kafka 协议／API 兼容性（Kafka API Compatibility），许多 Kafka 客户端可以继续使用。
-
-| 比较维度（Dimension） | Apache Kafka | Redpanda |
+| Product | Easy way to remember it | Best fit |
 | --- | --- | --- |
-| 核心数据模型 | 分区日志、Offset、Consumer Group | 同类模型，提供 Kafka API 兼容性 |
-| 服务端实现 | 主要使用 Java / Scala，运行于 JVM | 主要使用 C++，采用 Seastar 框架 |
-| 集群协调 | 现代 Kafka 使用 KRaft；旧部署可能使用 ZooKeeper | 使用内置 Raft 协调与复制 |
-| 工具与生态 | Kafka Connect、Kafka Streams 和广泛的集成生态 | 可复用许多 Kafka 客户端和工具，提供 rpk、Console 等工具 |
-| 部署选择 | 自建或多家厂商的托管服务 | 自建或 Redpanda Cloud |
-| 需要核对 | 运维能力、版本与生态依赖 | 所需 API／工具兼容性、版本、授权与功能范围 |
+| **RabbitMQ** | A careful parcel sorter | Flexible routing and ordinary background tasks |
+| **RocketMQ** | An order-processing specialist | Business workflows that need delayed, ordered, or transactional messages |
+| **Kafka** | A high-volume event log | Large, continuous data streams that several systems read independently |
 
-**如何选择**：已有 Kafka 团队和成熟集成时，Kafka 通常更容易延续现有体系。希望保留 Kafka API，并评估另一种部署与性能方案时，可以考虑 Redpanda。不能只凭实现语言判断谁更快、更便宜；应使用实际消息大小、吞吐、保留期和故障场景做评估。
+#### RabbitMQ: route each message to the right queue
 
-#### 5.2.3 什么时候值得采用事件流平台？
+RabbitMQ uses an **exchange** to decide which queue receives a message. For example, `notification.email` can go to email workers, `notification.sms` to SMS workers, and an order event can be sent to several queues. Workers process messages and acknowledge success. In an ordinary queue, an acknowledged message is removed; failed work can be retried. RabbitMQ Streams are a separate option that can retain and replay messages.
 
-- 多个系统需要独立处理同一份持续产生的数据。
-- 需要保留历史事件，支持重新计算、补数据（Backfill）或新增消费者。
-- 需要 CDC、实时分析（Real-time Analytics）或流处理（Stream Processing）。
+Choose RabbitMQ when routing rules or task handling matter more than storing a long event history. For example, an internal notification service may have a separate queue and worker pool for email, SMS, and push notifications.
 
-如果需求只是“后台发送邮件，成功后删除任务”，一个普通任务队列往往更直接。Kafka 可以承担异步任务，但传统分区消费模型下，失败任务、重试与跳过消息需要额外设计。
+#### RocketMQ: support common order and payment workflows
 
-### 5.3 传统消息代理（Traditional Message Brokers）
+RocketMQ offers several features that business systems often need:
 
-#### 5.3.1 RabbitMQ：通过交换机把消息送到不同队列
+- **Delayed messages:** check whether an order is still unpaid after 30 minutes, then cancel it *only if it is still unpaid*.
+- **Ordered messages:** process events for the same order in the right sequence, such as created → paid → shipped. The application must route that order consistently; this does not create a global order across all messages.
+- **Transactional messages:** help coordinate a local database transaction with publishing a message. They do not automatically make two services' databases one atomic transaction.
+- **Retries:** try again when a consumer fails, with a plan for messages that repeatedly fail.
 
-**模型：生产者 → 交换机（Exchange）→ 绑定（Binding）→ 队列（Queue）→ 消费者。**
+RocketMQ is a strong candidate for a busy order or payment system when these features match real requirements. Consumers still need **idempotency**: processing the same message again must not charge or update an order twice.
 
-Exchange 决定路由，Queue 保存待处理消息。一条消息可以路由到多个队列；同一队列中的多个消费者则分摊任务。
+#### Kafka: keep an event history for independent readers
 
-| 交换机类型（Exchange Type） | 路由方式 | 例子 |
-| --- | --- | --- |
-| Direct | Routing Key 与 Binding Key 精确匹配 | `email` 进入邮件队列，`sms` 进入短信队列 |
-| Fanout | 广播到所有绑定队列，不看 Routing Key | 订单事件同时进入积分和报表队列 |
-| Topic | 按点分隔的 Routing Key 做模式匹配 | `order.*` 匹配 `order.paid`；`order.#` 也可匹配 `order.eu.paid` |
-| Headers | 根据消息头（Headers）及匹配规则路由 | 按 `region=eu`、`format=json` 等属性分发 |
+Kafka stores events in a log for a configured retention period. Reading an event does not remove it. A risk system, a reporting system, and a recommendation system can each read the same stream at their own pace. They can also replay events that are still retained.
 
-Topic Exchange 中，`*` 匹配一个词，`#` 匹配零个或多个词。RabbitMQ 的 Topic Exchange 是一种路由机制，与 Kafka 的 Topic 日志不是同一个概念。
+Four terms are enough to start:
 
-```text
-Order Service
-  → Topic Exchange，Routing Key = order.paid
-      ├─ Binding = order.* → Audit Queue → Audit Workers
-      └─ Binding = order.paid → Rewards Queue → Rewards Workers
-```
+- **Topic:** a named stream, such as `user-activity`.
+- **Partition:** one ordered slice of that stream. More partitions allow more parallel work; ordering is within a partition, not across the whole topic.
+- **Consumer group:** one application's readers. Different groups read the same topic independently; workers within a group share the partitions.
+- **Offset:** a group's reading position in a partition. Moving it back can replay retained events.
 
-#### 5.3.2 可靠性与消费控制（Reliability and Consumption Control）
+For example, a website writes `PageViewed` and `ProductClicked` events to Kafka. Analytics and recommendations read them in separate consumer groups. A new analysis job can later read retained events without asking the website to produce them again. Kafka is especially useful for logs, user activity, real-time analysis, and data pipelines. For a simple “send one email, then remove the task” workflow, retries and per-task completion are usually easier with an ordinary queue.
 
-- **消费者确认（Consumer ACK）**：成功处理后确认，普通队列中的消息随后被移除。消费者在确认前断开时，未确认消息通常可重新投递。
-- **生产者确认（Publisher Confirms）**：生产者确认 Broker 是否已接受发布。它与 Consumer ACK 分属两端，不能互相替代；还要处理消息未路由到任何队列的情况。
-- **预取数量（Prefetch Count）**：限制一个消费者持有的未确认消息数，避免某个 Worker 预取太多任务，让其他 Worker 闲置。
-- **死信交换机（Dead-letter Exchange, DLX）**：满足死信条件时，把消息重新路由到指定交换机，再进入用于排查或重试的队列。重复 `NACK + requeue` 可能形成快速失败循环，需要设计退避和重试上限。
-- **持久化与复制**：队列持久性（Queue Durability）、消息持久性（Message Persistence）、确认机制和复制配置要一起考虑，不能只设置一个 `durable` 就假定不会丢消息。
+### 5.3 Compare the tradeoffs
 
-#### 5.3.3 队列类型与重放（Queue Types and Replay）
+| Question | RabbitMQ | RocketMQ | Kafka |
+| --- | --- | --- | --- |
+| What stands out? | Flexible routing and task handling | Business-oriented message features | High-volume event streams and independent readers |
+| What happens after consumption? | Ordinary queues remove acknowledged messages; Streams can retain them | Messages can remain available for replay within retention limits | Events remain until the retention policy removes them |
+| How is order handled? | Depends on queue and consumer setup | Can preserve order for a business key, such as one order ID | Order is guaranteed within a partition |
+| What extra work matters? | Plan routing, acknowledgements, retries, and queue durability | Plan retries, idempotency, and business consistency | Plan partitions, retention, consumer progress, and retries |
 
-| 类型（Type） | 主要用途 | 消费与存储特点 |
-| --- | --- | --- |
-| Classic Queue | 普通任务队列与灵活路由 | 现代版本中通常不复制；成功 ACK 后移除消息 |
-| Quorum Queue | 需要复制和故障容忍的任务队列 | 基于 Raft 复制，成功 ACK 后仍是任务完成语义；复制增加资源开销 |
-| Stream / Super Stream | 需要保留和重放的流式数据 | 追加日志，按保留策略保存，通过消费位置读取；Super Stream 支持分区扩展 |
+You may hear that Kafka handles “millions per second,” RocketMQ “hundreds of thousands,” RabbitMQ “tens of thousands,” or that RabbitMQ always has “microsecond latency.” Treat these as rough impressions, **not performance guarantees**. Message size, hardware, batching, replication, persistence, and consumer work change the result. Measure end-to-end latency and throughput using your own workload.
 
-因此，“RabbitMQ 消费后删除消息”主要描述普通队列。RabbitMQ Streams 也能保留和重放，选型时要比较具体的数据模型。
+All three can use durable storage and replicas to reduce message loss. No product offers unconditional “zero data loss”: producer acknowledgements, disk writes, replication, consumer acknowledgements, and failure timing all matter. A retry may also deliver a message again, so consumers must handle duplicates safely.
 
-#### 5.3.4 与 SQS、Kafka 的区别
+### 5.4 A practical choice
 
-- **RabbitMQ 与 SQS**：都能承担任务队列。SQS 由 AWS 托管，通过 API 和可见性超时管理任务；RabbitMQ 提供 Exchange 路由、Consumer ACK、Prefetch 等控制，适合需要这些机制或部署在自有环境的系统。RabbitMQ 也有托管方案，自建则需管理节点、磁盘、复制和升级。
-- **RabbitMQ 普通队列与 Kafka**：前者围绕“消息是否完成处理”，后者围绕“持久事件日志和读取位置”。Kafka 适合历史重放和独立消费者组；RabbitMQ 普通队列适合逐条确认、任务分发和灵活路由。
-- **RabbitMQ Streams 与 Kafka**：两者都支持日志保留和重放，应进一步比较分区、客户端、工具生态、运维及已有部署。
+- **Choose Kafka** when you collect large, continuous streams of logs or user events, need several independent readers, or need to replay retained history.
+- **Choose RocketMQ** when an order, payment, or fulfillment system genuinely needs delayed checks, per-order sequencing, or transaction-aware publishing.
+- **Choose RabbitMQ** when you need flexible routing or a straightforward background task queue, such as separate email and SMS workers.
 
-**具体例子**：内部通知系统根据 `notification.email`、`notification.sms`、`notification.push` 把任务送到不同队列，各队列使用不同 Worker、Prefetch 和失败处理策略。需要这种路由与消费控制，并且能够承担部署管理时，RabbitMQ 是合理选择。
+Before committing, write down the expected peak message rate and size, acceptable delay, replay window, ordering scope, retry behavior, and failure conditions. Then test with realistic traffic. A system may use more than one product, but each additional broker adds operational cost.
 
-### 5.4 用同一个订单系统理解选型（One Order System, Different Requirements）
+### 5.5 Official references
 
-| 业务需求（Requirement） | 常见选择（Common Options） | 选择原因（Reason） |
-| --- | --- | --- |
-| 支付成功后发邮件，多个 Worker 分摊 | SQS / RabbitMQ Queue / Pub/Sub 单个订阅 | 缓冲任务，确认成功，失败重试 |
-| 支付事件让积分、风控、报表各处理一次 | EventBridge / Pub/Sub 多订阅 / RabbitMQ 多队列 | 每个业务服务有独立的事件处理路径 |
-| 根据金额、地区等事件字段分发到 AWS 服务 | EventBridge | 内容筛选与目标集成 |
-| 保留订单事件，未来重新计算销售报表 | Kafka / Redpanda；也可评估 Pub/Sub 重放或 RabbitMQ Streams | 历史保留和独立读取是核心需求 |
-| 内部任务按路由键、消息头精细分发 | RabbitMQ | Exchange 与 Binding 提供明确的路由控制 |
-
-一个系统可以组合使用这些产品。例如 EventBridge 负责业务事件分发，SQS 负责下游任务缓冲，Kafka 保存供分析系统重放的事件历史。每增加一个组件，也会增加成本和维护工作，应由明确需求驱动。
-
-### 5.5 官方参考（Official References）
-
-产品能力会随版本变化，具体保证、配额和计费应以所用版本的文档为准。
-
-- [Amazon SQS Developer Guide](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html)
-- [EventBridge Custom Event Bus](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-custom-bus.html) 与 [Default / Classic Event Bus](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-bus.html)
-- [Google Cloud Pub/Sub Overview](https://cloud.google.com/pubsub/docs/overview) 与 [Exactly-once Delivery](https://cloud.google.com/pubsub/docs/exactly-once-delivery)
 - [Apache Kafka Introduction](https://kafka.apache.org/intro)
-- [Introduction to Redpanda](https://docs.redpanda.com/current/get-started/intro-to-events/)
-- [RabbitMQ Topic Exchange Tutorial](https://www.rabbitmq.com/tutorials/tutorial-five-python) 与 [RabbitMQ Streams](https://www.rabbitmq.com/docs/streams)
+- [Apache RocketMQ Documentation](https://rocketmq.apache.org/docs/)
+- [RabbitMQ Documentation](https://www.rabbitmq.com/docs)
