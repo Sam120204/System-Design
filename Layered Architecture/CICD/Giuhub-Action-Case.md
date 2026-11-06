@@ -19,6 +19,35 @@
 * **可靠性**：事件至少一次投递、状态持久化、幂等创建、租约超时回收和可重试的 job attempt。对于有外部副作用的部署步骤，平台不能保证严格的“恰好一次”；步骤自身还要使用幂等键或部署锁。
 * **控制面与数据面解耦**：控制面决定运行什么、何时运行、分配到哪里；数据面领取 job、执行步骤、上传日志并回报结果。控制面短暂不可用时，已启动的 job 可以继续执行，但新的调度和状态收敛会延迟。
 
+## 核心答题框架：上下两层
+
+设计 CI/CD、任务调度、托管计算这类系统时，可以先把架构讲成**上层控制面（Control Plane）**和**下层数据面（Data Plane）**。上层负责做决定，下层负责执行并反馈；这是职责分层，并不要求两层一定部署在同一组机器的物理上下位置。
+
+| 层 | 草图中的三个动作 | 在本案例中具体做什么 | 主要组件 |
+| --- | --- | --- | --- |
+| **上层：控制面** | **Receive（接收）** | 接收并校验 Git 事件，识别 tenant、repo、commit 和触发规则。 | Event ingestion |
+| | **Process（处理）** | 读取该 commit 的 workflow YAML，展开 job DAG，检查依赖、权限、配额和重试策略。 | Controller、状态数据库 |
+| | **Assign（分配）** | 把可运行 job 置为 `queued`，发布就绪通知，并决定可用 runner 的类型、标签和并发额度；最终由 gateway 发放具体租约。 | Controller、outbox/event bus、runner gateway |
+| **下层：数据面** | **Receive（接收）** | runner 通过 gateway 拉取并领取一个已获准执行的 job，得到租约和执行所需的短期凭据。 | Runner gateway、runner |
+| | **Execute（执行）** | 在隔离环境中检出固定 commit，执行构建、测试或部署步骤。 | Runner platform（VM/容器） |
+| | **Report（回报）** | 上传日志、心跳和结果；更新持久化状态，让控制面推进后续 job，并让 UI 展示进度。 | Runner、runner gateway、状态/日志存储 |
+
+```mermaid
+flowchart TB
+    subgraph CP[上层：Control Plane]
+        A[Receive: 接收事件] --> B[Process: 解析和调度]
+        B --> C[Assign: 使 job 就绪]
+    end
+    subgraph DP[下层：Data Plane]
+        D[Receive: 领取 job] --> E[Execute: 运行步骤]
+        E --> F[Report: 状态和日志]
+    end
+    C -->|desired state / JobReady| D
+    F -->|observed state / JobFinished| B
+```
+
+面试中可以先用这六个动词说明职责，再展开下一节的组件图。**控制面下发期望状态，数据面回报实际状态**，两层之间形成反馈回路。Event bus 和数据库是跨层协作的基础设施；不能简单地把图中每个框硬归到某一层。`Assign` 也不等于把 job 直接推给某台 runner：控制面决定 job 可运行和匹配规则，gateway 在 runner 请求时通过原子租约完成具体分配。
+
 ## 2. 粗略容量估算
 
 草图写的 `1B / 100k sec = 10K QPS` 在算术上成立：**10 亿事件 / 10 万秒 = 1 万事件/秒**，10 万秒约为 27.8 小时；草图假设峰值约 **5 万事件/秒**。这些是输入假设，不能直接当作真实业务规模。
