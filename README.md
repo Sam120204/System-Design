@@ -23,7 +23,7 @@ System-Design/
 
 ## Layered Architecture
 
-[Design Overview](<Layered Architecture/design overview.md>) explains control plane and data plane responsibilities in managed services, their feedback loop, communication channels, and the benefits of separating them.
+[Design Overview](<Layered Architecture/design overview.md>) explains control plane and data plane responsibilities in managed services, their feedback loop, communication channels, and the benefits of separating them. The [CI/CD case study](<Layered Architecture/CICD/Giuhub-Action-Case.md>) applies those ideas to workflow scheduling, runner leases, and CDC-based event delivery.
 
 ## Web 开发与扩展（Web Development and Scalability）
 
