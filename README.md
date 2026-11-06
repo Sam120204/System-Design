@@ -8,6 +8,7 @@
 System-Design/
 ├── README.md
 ├── LICENSE
+├── Layered Architecture/ # Control plane and data plane responsibilities
 ├── web development/     # Web 基础、扩容、数据库与术语
 │   └── images/          # Web 笔记引用的架构图
 ├── Asychronous/         # 异步处理与消息系统
@@ -19,6 +20,10 @@ System-Design/
 │   └── assets/          # 系统设计案例的架构图
 └── Kubernetes/          # 容器编排与部署实践
 ```
+
+## Layered Architecture
+
+[Design Overview](<Layered Architecture/design overview.md>) explains control plane and data plane responsibilities in managed services, their feedback loop, communication channels, and the benefits of separating them.
 
 ## Web 开发与扩展（Web Development and Scalability）
 
