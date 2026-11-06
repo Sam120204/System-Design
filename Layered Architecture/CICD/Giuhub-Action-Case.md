@@ -30,7 +30,7 @@
 | | **Assign（分配）** | 把可运行 job 置为 `queued`，发布就绪通知，并决定可用 runner 的类型、标签和并发额度；最终由 gateway 发放具体租约。 | Controller、outbox/event bus、runner gateway |
 | **下层：数据面** | **Receive（接收）** | runner 通过 gateway 拉取并领取一个已获准执行的 job，得到租约和执行所需的短期凭据。 | Runner gateway、runner |
 | | **Execute（执行）** | 在隔离环境中检出固定 commit，执行构建、测试或部署步骤。 | Runner platform（VM/容器） |
-| | **Report（回报）** | 上传日志、心跳和结果；更新持久化状态，让控制面推进后续 job，并让 UI 展示进度。 | Runner、runner gateway、状态/日志存储 |
+| | **Report（回报）** | 上传日志、心跳和结果；runner gateway 把关键状态变更通过事件流回传给 controller，使其推进后续 job。 | Runner、runner gateway、状态/日志存储、event bus |
 
 ```mermaid
 flowchart TB
@@ -43,7 +43,7 @@ flowchart TB
         E --> F[Report: 状态和日志]
     end
     C -->|desired state / JobReady| D
-    F -->|observed state / JobFinished| B
+    F -->|streaming: observed state / JobFinished| B
 ```
 
 面试中可以先用这六个动词说明职责，再展开下一节的组件图。**控制面下发期望状态，数据面回报实际状态**，两层之间形成反馈回路。Event bus 和数据库是跨层协作的基础设施；不能简单地把图中每个框硬归到某一层。`Assign` 也不等于把 job 直接推给某台 runner：控制面决定 job 可运行和匹配规则，gateway 在 runner 请求时通过原子租约完成具体分配。
@@ -64,6 +64,7 @@ flowchart LR
     D -->|transaction log| E[CDC relay]
     E --> F[(Event bus)]
     F -->|job ready notification| G[Runner gateway]
+    F -->|runner status stream| C
     H[Runner platform / workers] -->|poll and request lease| G
     G -->|atomic claim / heartbeat / result| D
     H -->|logs and result| G
@@ -71,10 +72,9 @@ flowchart LR
     I -->|WebSocket / SSE| J[UI]
     J -->|query / recover gaps| K[Query API]
     K --> D
-    G -->|completion event or persisted result| C
 ```
 
-`Controller → Event bus` 在草图中表示“发布调度结果”；如果使用事务性 outbox 和 CDC，实际可靠路径是 **Controller → DB 中的业务状态及 outbox → CDC relay → Event bus**。浏览器通过查询 API 读取数据库，而不是直连数据库。
+`Controller → Event bus` 在草图中表示“发布调度结果”；如果使用事务性 outbox 和 CDC，实际可靠路径是 **Controller → DB 中的业务状态及 outbox → CDC relay → Event bus**。反方向的 **Runner gateway → Controller 是 streaming 回报**：gateway 持久化执行状态和 outbox，CDC 将 `JobStarted`、`JobFinished` 等事件送入 event bus，controller 持续消费并推进 DAG。浏览器通过查询 API 读取数据库，而不是直连数据库。
 
 ## 4. 逐项解释草图中的组件和箭头
 
@@ -100,7 +100,7 @@ flowchart LR
 6. **Event bus → Runner gateway**：gateway 消费 `JobReady` 通知，更新可领取队列或唤醒长轮询。消息可能重复或乱序；gateway 必须再核实 job 的当前状态并原子领取。
 7. **Runner platform → Runner gateway（pull + lease）**：空闲 runner 主动请求工作。gateway 按容量、标签、租户配额匹配 job，并在 DB 中用条件更新将 `queued` 改为 `leased`，写入 runner、attempt、租约期限，返回临时执行令牌。
 8. **Runner platform → Runner gateway（心跳、结果、日志）**：runner 续租并上报阶段状态；日志通常分块上传到对象存储，DB 只存索引/URL。完成时用 attempt ID 和 lease token 防止过期 runner 覆盖新 attempt 的结果。
-9. **Runner gateway → Controller**：持久化结果后，通知控制面推进 DAG，释放依赖它的后续 job。也可以让 controller 消费 `JobFinished` 事件；关键是状态持久化和可重放。
+9. **Runner gateway → Controller（streaming）**：gateway 将 `JobStarted`、`JobFinished`、`JobFailed` 等关键状态和 outbox 在同一事务中持久化，再经 CDC 发布到 event bus；controller 持续消费事件流，推进 DAG 并释放后续 job。事件包含 `run_id`、`job_id`、`attempt_id`、状态版本和时间戳；按 job 分区以维持同一 job 的顺序，按版本幂等处理重复事件。高频心跳主要用于续租和健康检测，不必每次都送进调度事件流；完整日志放在对象存储，事件流只传日志位置或摘要。
 10. **Event bus → Push → UI**：状态事件触发实时通知。用户刷新页面时，查询 API 读取 DB 中的当前状态；不能只靠推送构造唯一真相。
 
 ## 5. CDC 在哪里？为什么需要它？
@@ -115,6 +115,8 @@ flowchart LR
 4. Relay、broker 或 gateway 重试可能造成重复消息，所以用 `event_id`、`job_id`、`version` 做幂等检查。另有后台扫描器查找长期 `queued` 且未被领取的 job，修复漏通知或消费者故障。
 
 因此，**CDC 只负责“数据库已提交的变更 → event bus”这一段**；**“event bus → runner gateway”是普通的消息消费**。也可以不用 CDC，改用轮询 outbox 表的 publisher；关键机制是事务性 outbox，而不是 CDC 这个具体工具。
+
+回报方向也可复用这个机制：**Runner gateway → DB 状态和 outbox → CDC → event bus → Controller**。这里的 event bus 承载持续的状态事件流；controller 是流消费者，而不是等待 gateway 同步调用它。这样 controller 暂时不可用时，事件仍可保留并在恢复后重放。
 
 ## 6. 数据模型：解释草图中的每个字段
 
