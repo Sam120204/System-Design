@@ -2,6 +2,10 @@
 
 > 这是根据题图整理的 **Cloudflare 风格 CDN 设计练习**，不是对 Cloudflare 内部实现的描述。重点是理解 pull、push、多层缓存，以及内容更新如何传播到全球。
 
+## 原始设计截图
+
+![用户提供的完整 CDN 设计草图，包含 edge、mid-tier、origin 和控制路径](assets/cdn-full-design.png)
+
 ## 1. CDN 是什么？
 
 CDN（Content Delivery Network，内容分发网络）是一组分布在不同网络和地区的服务节点。用户请求图片、视频片段、脚本或其他可缓存内容时，CDN 尽量在附近节点返回，减少用户到源站（origin）的距离、延迟和源站负载。源站仍负责提供权威内容；缓存保存的是可按规则复用的副本。
@@ -9,6 +13,8 @@ CDN（Content Delivery Network，内容分发网络）是一组分布在不同�
 一个典型请求是：`用户 → CDN 入口 → 附近 POP 的 edge →（缓存未命中时）上游缓存 → origin`。**POP** 是 *Point of Presence*，即 CDN 在某个城市或网络接入点部署的站点；一个 POP 可以有负载均衡器和多台 edge/cache 机器。POP 不是单台缓存服务器。
 
 题图里的三个关键词可以这样理解：
+
+![用户提供的 CDN 基本概念截图](assets/cdn-basics.png)
 
 * **全球分布**：许多 POP 靠近不同用户和运营商。
 * **缓存**：命中时不访问源站；未命中时回源并按策略填充缓存。
@@ -46,6 +52,8 @@ CDN（Content Delivery Network，内容分发网络）是一组分布在不同�
 
 ## 4. Pull CDN：按需回源
 
+![用户提供的 Pull CDN 草图](assets/cdn-pull.png)
+
 Pull 模式下，客户先在源站发布内容并配置 CDN；CDN 不提前复制所有对象。第一次请求经过某个 POP 时：
 
 1. Edge 查本地缓存；命中且仍新鲜就直接返回。
@@ -58,6 +66,8 @@ Pull 模式下，客户先在源站发布内容并配置 CDN；CDN 不提前复�
 **内容更新不等于必然 miss。** 如果客户只在 origin 覆盖旧文件，而 edge 的旧副本还没过期，用户可能继续看到旧内容。删除旧资源后也可能如此。只有缓存键改变、条目不存在/过期、被 purge，或者重新验证发现已变更时，才会发生需要重新获取内容的路径。
 
 ## 5. Push CDN：预先发布或预热
+
+![用户提供的 Push CDN 草图](assets/cdn-push.png)
 
 Push 模式下，客户把内容或新版本的发布清单（manifest）主动交给 CDN。CDN 可以经 ingress 接收内容，并在用户请求前预置到目标 POP；也可以根据清单先从 origin 抓取，再把内容预热到缓存。
 
@@ -88,17 +98,7 @@ Thundering herd（惊群）是许多请求因同一事件同时冲向同一上�
 
 你的理解**基本正确**：新用户的请求先到某个 POP 的 LB，再到 edge；如果 edge miss，就到 mid-tier；如果 mid-tier 也 miss，才去 origin。需要补充两点：用户到 POP 之前通常经过 DNS/Anycast 路由；LB 只在该 POP 内选择 edge。**Mid-tier 本身就是一层缓存**，同时负责汇聚、请求合并和保护 origin。这里的“新用户”不一定意味着 miss：对象可能已经被其他用户请求过，或提前预热到了 edge。
 
-```mermaid
-flowchart LR
-    U[User] --> R[DNS / Anycast routing]
-    R --> LB[POP load balancer]
-    LB --> E[Edge cache - L1]
-    E -->|L1 miss| P[Parent / mid-tier cache - L2]
-    P -->|L2 miss| O[Origin]
-    O -->|response / fill| P
-    P -->|response / fill| E
-    E --> U
-```
+完整路径见[顶部的原始设计截图](assets/cdn-full-design.png)。图中的两组 POP/edge 汇聚到 mid-tier；虚线表示 mid-tier 在需要时访问 origin。
 
 一次完全冷启动的请求按 `User → POP LB → Edge → Mid-tier → Origin` 走；若响应允许缓存，就反向回填 `Origin → Mid-tier → Edge → User`。下一位同 POP 用户可能命中 edge；另一 POP 的 edge 即使 miss，也可能命中共享的 mid-tier，省去 origin 访问。Mid-tier 可以是区域级 shield，也可以是按对象/租户映射的一组 parent；并非全球只有一台中间服务器。
 

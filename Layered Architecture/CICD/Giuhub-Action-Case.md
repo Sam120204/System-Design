@@ -4,6 +4,10 @@
 
 > 这是一个用于系统设计讨论的简化模型，不代表 GitHub Actions 的实际内部实现。草图中的 `Giuhub` 是文件名中的原拼写；下文使用标准名称 GitHub Actions。
 
+## 原始设计截图
+
+![用户提供的 CI/CD 系统设计草图](../assets/cicd-system-design.png)
+
 ## 1. 需求和边界
 
 ### 功能需求
@@ -32,21 +36,9 @@
 | | **Execute（执行）** | 在隔离环境中检出固定 commit，执行构建、测试或部署步骤。 | Runner platform（VM/容器） |
 | | **Report（回报）** | 上传日志、心跳和结果；runner gateway 把关键状态变更通过事件流回传给 controller，使其推进后续 job。 | Runner、runner gateway、状态/日志存储、event bus |
 
-```mermaid
-flowchart TB
-    subgraph CP[上层：Control Plane]
-        A[Receive: 接收事件] --> B[Process: 解析和调度]
-        B --> C[Assign: 使 job 就绪]
-    end
-    subgraph DP[下层：Data Plane]
-        D[Receive: 领取 job] --> E[Execute: 运行步骤]
-        E --> F[Report: 状态和日志]
-    end
-    C -->|desired state / JobReady| D
-    F -->|streaming: observed state / JobFinished| B
-```
+![用户补充的控制面与数据面上下两层截图](../assets/cicd-control-data-planes.png)
 
-面试中可以先用这六个动词说明职责，再展开下一节的组件图。**控制面下发期望状态，数据面回报实际状态**，两层之间形成反馈回路。Event bus 和数据库是跨层协作的基础设施；不能简单地把图中每个框硬归到某一层。`Assign` 也不等于把 job 直接推给某台 runner：控制面决定 job 可运行和匹配规则，gateway 在 runner 请求时通过原子租约完成具体分配。
+面试中可以先用截图中的六个动词说明职责，再展开上面的原始架构图。**控制面下发期望状态，数据面通过 streaming 回报实际状态**，两层之间形成反馈回路。Event bus 和数据库是跨层协作的基础设施；不能简单地把图中每个框硬归到某一层。`Assign` 也不等于把 job 直接推给某台 runner：控制面决定 job 可运行和匹配规则，gateway 在 runner 请求时通过原子租约完成具体分配。
 
 ## 2. 粗略容量估算
 
@@ -56,23 +48,7 @@ flowchart TB
 
 ## 3. 整体流程
 
-```mermaid
-flowchart LR
-    A[Git push / webhook] --> B[Event ingestion]
-    B --> C[Controller / scheduler]
-    C <-->|state + outbox in one transaction| D[(Workflow and job DB)]
-    D -->|transaction log| E[CDC relay]
-    E --> F[(Event bus)]
-    F -->|job ready notification| G[Runner gateway]
-    F -->|runner status stream| C
-    H[Runner platform / workers] -->|poll and request lease| G
-    G -->|atomic claim / heartbeat / result| D
-    H -->|logs and result| G
-    F -->|status events| I[Push service]
-    I -->|WebSocket / SSE| J[UI]
-    J -->|query / recover gaps| K[Query API]
-    K --> D
-```
+本节解释[原始设计截图](../assets/cicd-system-design.png)中的路径。截图没有单独画出 CDC 和 outbox；它们是下面文字对可靠事件发布的补充。截图中的 runner gateway 到 controller 箭头按你的补充理解为 **streaming 状态回报**。
 
 `Controller → Event bus` 在草图中表示“发布调度结果”；如果使用事务性 outbox 和 CDC，实际可靠路径是 **Controller → DB 中的业务状态及 outbox → CDC relay → Event bus**。反方向的 **Runner gateway → Controller 是 streaming 回报**：gateway 持久化执行状态和 outbox，CDC 将 `JobStarted`、`JobFinished` 等事件送入 event bus，controller 持续消费并推进 DAG。浏览器通过查询 API 读取数据库，而不是直连数据库。
 
