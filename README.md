@@ -23,7 +23,7 @@ System-Design/
 
 ## Layered Architecture
 
-[Design Overview](<Layered Architecture/design overview.md>) explains control plane and data plane responsibilities in managed services, their feedback loop, communication channels, and the benefits of separating them. The [CI/CD case study](<Layered Architecture/CICD/Giuhub-Action-Case.md>) applies those ideas to workflow scheduling, runner leases, and CDC-based event delivery.
+[Design Overview](<Layered Architecture/design overview.md>) explains responsibility and topology layering. The [CI/CD case study](<Layered Architecture/CICD/Giuhub-Action-Case.md>) applies control and data planes to workflow scheduling and runner feedback. [Cloudflare: Design a CDN](<Layered Architecture/Cloudflare-Design-CDN.md>) explains POP routing, pull versus push, parent caches, and global invalidation.
 
 ## Web 开发与扩展（Web Development and Scalability）
 
