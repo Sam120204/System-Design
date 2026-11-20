@@ -74,13 +74,14 @@ System-Design/
 
 ## 内部一致性与设计案例（Internal Consistency and Design Cases）
 
-[阅读指南](Internal-Consistency-System/README.md) 从事务、不变量和并发控制开始，再看文件同步和在线竞拍案例。
+[阅读指南](Internal-Consistency-System/README.md) 从事务、不变量和并发控制开始，再看文件同步、在线竞拍和支付案例。
 
 | 笔记（Note） | 内容（Topics） |
 | --- | --- |
 | [Internal Consistency: Design Review](<Internal-Consistency-System/design review.md>) | 事务、锁、OCC、约束、单写者与复制一致性 |
 | [Design Dropbox / Google Drive](Internal-Consistency-System/design-dropbox-google-drive.md) | 文件版本、分块上传、设备同步与冲突处理 |
 | [Design Online Auction](Internal-Consistency-System/design-online-auction.md) | 出价不变量、Redis fast reject / fast allow、热点与事件分发 |
+| [Stripe: Design a Payment System](Internal-Consistency-System/design-payment-stripe.md) | 卡支付流程、订单／支付／账本、幂等、Outbox 与 Kafka-first、对账 |
 
 ## 衍生数据系统（Derived Data Systems）
 
