@@ -1,67 +1,76 @@
-# 案例分析：设计视频生成平台（Design Video Generator）
+# Design a Text-to-Video Generation Platform
 
-客户端提交文本 prompt 和视频参数，获得 job ID，再查询进度或通过 Webhook 接收完成通知。草图以 **15 秒、720p** 为基础规格，以 **60 秒、1080p** 为扩展规格。标准任务的端到端延迟目标为 5 分钟以内，包含排队、生成、校验和发布。假设模型已经训练好，平台初期在单 region、多可用区运行。
+A client submits a text prompt and video settings, receives a job ID, then polls for status or gets a completion webhook. The baseline output is a 15-second, 720p video. A higher-quality profile supports up to 60 seconds at 1080p. The standard job has an end-to-end target of under five minutes, including time in the queue. Start with one region, multiple availability zones, and pretrained models.
 
-## 1. 架构与主流程
+## 1. Architecture and request flow
 
-![视频生成架构草图：客户端经 API Gateway、后端与队列进入 Workflow Controller，成品经 CDN 交付](images/design-video-generator.png)
+![Original architecture sketch showing the API gateway, job database, queue, workflow controller, and CDN](images/design-video-generator.png)
 
-1. **准入控制。** LB / API Gateway 负责鉴权、限流和配额校验。后端根据分辨率、时长和模型估算 GPU 工作量，结合队列等待时间控制新任务准入，并为标准与高质量任务划分容量。超过配额或容量上限时可返回 `429`。
-2. **接受并入队。** Backend Server 在同一数据库事务中创建 `ready` job 和 Outbox 命令，固定模型及运行时版本。事务提交即返回 `202 Accepted` 和 `job_id`。Outbox Relay 异步投递命令，将图中后端到队列的箭头落实为可重试的发布流程。同一租户以相同幂等键和请求参数重试时返回原 job，参数不同时返回 `409 Conflict`。
-3. **编排并执行。** Workflow Controller 从持久队列领取任务，按预处理、模型推理、后处理的依赖顺序调度各阶段。每次执行关联有期限的租约和递增的 fencing token。Worker 通过心跳续租，用当前 token 上报阶段进度，并将中间产物写入带 `attempt_id` 的对象路径。只有成品已持久化、校验并通过安全检查，且当前执行仍持有有效租约，Controller 才能在同一事务中关联成品、提交 `completed` 并写入状态事件。终态或重试安排持久化后才确认队列消息。
-4. **查询、下载与通知。** Job API 从数据库读取权威状态。图中 Controller 到 CDN 的箭头表示成品发布路径，成品在对象存储持久化，并作为 CDN 的源站内容。客户端获授权后使用短期签名 URL 直接从 CDN 下载。独立的 Webhook 服务消费已提交的状态事件，并向预注册端点发送签名通知。
+1. **Accept the request.** The API gateway authenticates the client and enforces tenant rate limits. The backend checks quota and estimates GPU work from the requested model, duration, and resolution. It can return `429` when the tenant exceeds its quota or the queue lacks room to meet the latency target. Reserve capacity across job classes so long renders cannot crowd out short ones.
+2. **Save and enqueue the job.** The backend writes the job and a transactional outbox record together, pinning the model and runtime versions. Once the transaction commits, it returns `202 Accepted` and a job ID. An outbox relay publishes to a durable queue and retries failed publishes. Within a tenant, reusing an idempotency key with the same request returns the existing job. Reusing it with different parameters returns `409 Conflict`.
+3. **Run the workflow.** The controller claims a job with a time-limited lease and a monotonically increasing fencing token. It schedules preprocessing, inference, and postprocessing in order. Workers renew the lease by heartbeat and save intermediate artifacts under an attempt-specific key. Progress and output commits require the current token and a valid lease.
+4. **Publish the result.** After the final video is durable in object storage and passes integrity and safety checks, the controller records the asset reference, marks the job `completed`, and writes a status event in one database transaction. The API reads status from that database. A separate webhook service delivers the committed event, while clients download the video from the CDN.
 
-## 2. GPU 执行流水线
+### DNS for the API and CDN
 
-![GPU 流水线草图：单卡预处理、八卡推理、单卡后处理、交付与中间产物体积](images/design-video-generator-pipeline.png)
-
-| 阶段 | 草图示例 | 执行职责 |
+| Hostname | DNS target | What happens after resolution |
 | --- | --- | --- |
-| 预处理 | 1 GPU | 检查输入，按需增强 prompt，再检查增强后的 prompt。廉价输入验证可以前置到提交路径。 |
-| 模型推理 | 8 GPU | 文本编码器提供条件信息，DiT 对视频 latent 逐步去噪，TAE 解码为视频帧。调度器一次为任务分配整组 GPU，尽量放在同一高速互联域。 |
-| 后处理 | 1 GPU | 按需增强空间分辨率（SSR）或时间分辨率（TSR），审核最终视频、加水印、压缩编码并生成预览。 |
-| 交付 | 对象存储与 CDN | 校验并持久化成品，然后发布可下载状态与通知。 |
+| `api.example.com` | Public address of the regional load balancer or managed API gateway | The client connects over HTTPS to submit a job, poll status, or request its content URL. The ingress routes the HTTP request to a healthy backend. |
+| `media.example.com` | CDN distribution hostname, typically via a CNAME | The client follows the API's short-lived signed URL and connects to a CDN edge. The CDN validates the signature and expiry before serving a cached object or fetching it from the private object storage origin. |
 
-草图中的 **1 → 8 → 1** 是各阶段的并发资源需求。Controller 在阶段完成时释放对应资源，只在推理阶段占用八卡组。阶段状态和中间对象引用可持久化，方便从最近一个已完成的阶段恢复。以图中的尺寸举例，`32 × 4 × 96 × 96` 个 latent 元素按 16 bit 约为 **2.36 MB**，而 256 帧 `720 × 720` 像素按 RGB8 约为 **398 MB**。解码、增帧与升分辨率会显著提高缓冲和传输需求，最终编码体积取决于分辨率、时长与码率。
+The DNS resolver caches the address according to its TTL, so changing a record takes time to reach clients. Depending on the CDN, DNS can steer clients to an edge address, or DNS can return an anycast address and let network routing select the point of presence. The signed URL's expiry is independent of the DNS TTL. Outbound webhook workers also resolve registered callback hostnames and check resolved destinations against the service's egress policy before connecting. [CDN routing deep dive](<../Layered Architecture/Cloudflare-Design-CDN.md>)
 
-30B 参数以 16 bit 存储时，模型权重约 **60 GB**。Worker 预热时加载权重。任务级 checkpoint 的体积由恢复所需的 latent、迭代位置与采样状态决定。按草图先支持 **drain**，即维护时停止领取新任务，让当前任务完成。主动抢占和推理步骤级恢复可在测量保存及恢复成本后再引入。
+## 2. GPU execution pipeline
 
-## 3. API 与状态
+![Original pipeline sketch showing one GPU for preprocessing, eight for inference, and one for postprocessing](images/design-video-generator-pipeline.png)
 
-| API | 行为 |
+| Stage | Example allocation | Work |
+| --- | --- | --- |
+| Preprocessing | 1 GPU | Check the input, optionally enhance the prompt, and check the enhanced prompt. Run cheap validation before admitting the job. |
+| Model inference | 8 GPUs | A text encoder produces conditioning embeddings. The Diffusion Transformer (DiT) denoises the video latent, and the decoder turns it into video frames. |
+| Postprocessing | 1 GPU | Optionally increase spatial resolution or frame rate, run final safety checks, add a watermark, and encode the video and preview. |
+| Delivery | Object storage and CDN | Verify the encoded file's checksum, persist it, then make the completed asset available to authorized clients. |
+
+The **1 → 8 → 1** allocation applies to successive stages. Release each allocation when its stage finishes, so encoding and delivery do not hold an eight-GPU group. Persist stage status and artifact references so a retry can resume from the last usable stage. A `32 × 4 × 96 × 96` latent tensor takes about **2.36 MB** at 16 bits per element. A raw RGB8 buffer for 256 frames at `720 × 720` takes about **398 MB**. Decode and upscale workers need memory and I/O headroom for those larger buffers, even when the encoded output is much smaller.
+
+A 30B-parameter model has about **60 GB** of weights at 16 bits, before activations and runtime overhead. Load weights when workers warm up and reuse them across jobs. During planned maintenance, drain workers by stopping new assignments and allowing active jobs to finish. If adding mid-inference preemption, measure the cost of saving and restoring the latent, denoising step, and sampler state against the cost of restarting the stage.
+
+## 3. API and job state
+
+| Endpoint | Behavior |
 | --- | --- |
-| `POST /generations` | 提交 prompt、视频参数、`Idempotency-Key` 和可选的 `webhook_endpoint_id`。持久化后返回 `202` 与 `job_id`。达到租户配额或准入上限时可返回 `429`。 |
-| `GET /generations/{job_id}` | 返回 `status`、`status_version`、近似进度和终态错误码。客户端可每 10–20 秒轮询。 |
-| `GET /generations/{job_id}/content` | 成品可用时返回 `302`，跳转到短期签名的 CDN URL。 |
-| `POST /webhook-endpoints` | 预注册并验证 HTTPS 回调地址，生成 endpoint ID，支持签名密钥轮换。 |
+| `POST /generations` | Accepts a prompt, output settings, an `Idempotency-Key`, and an optional `webhook_endpoint_id`. Returns `202` and the job ID after the database commit. |
+| `GET /generations/{job_id}` | Returns status, a monotonic `status_version`, the current stage, and an error code on terminal failure. |
+| `GET /generations/{job_id}/content` | Checks ownership, completion, and retention, then returns a `302` redirect to a short-lived signed CDN URL. |
+| `POST /webhook-endpoints` | Registers and verifies an HTTPS callback URL for signed status notifications. |
 
-草图中的内部主路径为 `ready → scheduling → running → completed`。API 将 `ready` 和等待 GPU 的 `scheduling` 映射为 `queued`，将 `running` 和已安排重试的 `retry_wait` 映射为 `in_progress`。短暂故障在退避后回到 `ready`，永久错误或重试耗尽时进入 `failed`。每次权威状态变化递增 `status_version`，每次重新执行建立新的 attempt。成品 30 天后按独立的资产状态异步清理。
+The internal path is `ready → scheduling → running → completed`. The API reports `queued` before the first attempt and `in_progress` during execution and automatic retries. Retryable failures use bounded backoff before another attempt. Permanent failures and exhausted attempts end in `failed`. Acknowledge the queue message after persisting a terminal state or scheduling a durable retry. With 30-day asset retention, a job can remain `completed` after its video expires.
 
-## 4. 故障恢复
+## 4. Failure recovery
 
-| 故障 | 恢复方式 |
+| Failure | Recovery |
 | --- | --- |
-| Job 已提交，发布队列消息失败 | Relay 重试未确认的 Outbox 记录。对长期排队且没有有效 attempt 的 job 定期对账，必要时重新投递。领取前通过数据库条件更新去重。 |
-| Worker 丢失心跳，旧 attempt 随后完成 | 回收超时租约。临时故障在重试预算内退避后经 Outbox 重新入队。新 attempt 获得更大的 token，旧 attempt 的进度更新与最终提交均被拒绝。 |
-| 成品已上传，Worker 在提交终态或确认消息前崩溃 | 尚未关联的 attempt 对象由异步清理回收。重新投递时先检查终态，已提交的 job 直接确认消息。 |
-| Webhook 超时、重复或乱序 | 以稳定的 `event_id` 做至少一次签名投递。可重试失败采用有上限的指数退避和抖动，耗尽后进入 DLQ 供排查与重放。接收方按 `event_id` 去重，按 `status_version` 忽略较旧的事件，必要时重新查询状态。 |
+| The backend committed the job but publishing failed | The relay retries the outbox record. A reconciler finds jobs that have remained queued without a live attempt. The controller uses a conditional claim to handle duplicate messages. |
+| A worker loses its lease and later finishes | A new attempt gets a higher fencing token. The old worker's status and output commits are rejected, and its unreferenced artifacts can be garbage-collected. |
+| A worker crashes after uploading the result | Uncommitted objects remain private and eligible for cleanup. If the database already recorded completion, a redelivered queue message is acknowledged without running inference again. |
+| A webhook fails, arrives twice, or arrives out of order | Deliver at least once with a stable `event_id`, a signature, and bounded backoff with jitter. Receivers deduplicate by event ID and use `status_version` to detect stale events. Exhausted deliveries go to a dead-letter queue for inspection and replay. |
 
-## 5. 容量与调度
+## 5. Capacity and scheduling
 
-| 草图的规模假设 | 对设计的影响 |
-| --- | --- |
-| 每天 500 万个 job，峰值 200 jobs/s | `5,000,000 ÷ 86,400 ≈ 58 jobs/s`。每种规格的 GPU 工作量可用 `预处理秒数 + 8 × 推理秒数 + 后处理秒数` 估算，再按各规格流量与目标利用率做容量规划。 |
-| 标准任务端到端 5 分钟以内 | 按兼容的模型与 GPU 规格划分队列。跟踪每类任务的待执行 GPU 工作量、最老任务等待时间和空闲八卡组数量，据此扩容或收紧准入。 |
-| 示例编码体积 50 MB 或 180 MB | 若每天 500 万个任务都生成成品，两种规格分别对应约 250 TB 或 900 TB 的每日新增量。实际容量按成功率与规格占比估算，另计预览、副本与临时对象。 |
+The sketch assumes **5 million jobs per day**, about **58 jobs/s** on average, with a **200 jobs/s** peak. For the example allocation, one job consumes roughly `preprocessing seconds + 8 × inference seconds + postprocessing seconds` in GPU-seconds. Estimate this per output profile and track queue age, queued GPU-seconds, and available eight-GPU groups. A cluster can have eight free GPUs in aggregate and still be unable to schedule a job that needs all eight on the same high-bandwidth fabric.
 
-## 6. Showoff time：八卡并行与 FLOPs 估算
+At 50 MB per successfully encoded job, 5 million jobs would add about **250 TB/day**. At 180 MB per job, the same volume would add about **900 TB/day**. Use the actual success rate and output mix for storage estimates, then add previews, replicas, and temporary artifacts.
 
-![进阶草图：16 秒视频的 token 数推导、CP4 与 TP2 八卡布局，以及 LLM 与 DiT 的 FLOPs 估算](images/design-video-generator-showoff.png)
+## 6. Showoff time — GPU parallelism and FLOPs
 
-- **从像素算 token。** 以图中的 16 秒、16 fps、768 × 768 视频为例，共 256 帧。假设编码器将三个轴都缩小 8 倍，得到 `32 × 96 × 96` 的 latent 网格。使用空间 `2 × 2` patch 后，DiT 的视频序列长度为 `32 × 48 × 48 = 73,728`。
-- **从序列长度决定并行方式。** 草图列出 USP（Unified Sequence Parallelism）和 `CP4 + TP2`。在后者中，四路 Context Parallelism 沿 token 维分片，两路 Tensor Parallelism 切分层内矩阵计算，合计八张卡。调度时整组分配，部署时测量跨卡通信和互联带宽对推理时延的影响。
-- **从参数量估算计算量。** 用 `2 × 参数量 × token 数` 粗估密集权重矩阵乘，70B LLM 处理 1,000 个 token 约需 **140 TFLOPs**。同一口径下，若 30B DiT 每个去噪步骤都处理全部 73,728 个视频 token，50 步约需 **221 PFLOPs**。该估算还要考虑注意力等开销。若每层对全部 token 做双向全注意力，QKᵀ 和 AV 合计约增加 `4n²dLS` FLOPs，其中 `n` 是 token 数，`d` 是隐藏维度，`L` 是层数，`S` 是去噪步数。实际用窗口注意力或稀疏注意力时，按相应实现估算并实测。
+![Original advanced sketch showing the video token calculation, CP4 plus TP2, and LLM and DiT FLOP estimates](images/design-video-generator-showoff.png)
 
-这些估算能解释调度为何要看视频时长、分辨率和去噪步数。它们决定 token 数或需要重复处理的次数，也会影响显存和互联需求。
+**Derive the token count.** A 16-second clip at 16 fps has 256 frames. With `768 × 768` frames and an assumed 8× compression along time, height, and width, the latent grid is `32 × 96 × 96`. Applying spatial `2 × 2` patches gives `32 × 48 × 48 = 73,728` video tokens per denoising step.
 
-相关案例可参考 [任务调度系统](design-job-scheduler.md) 和 [多租户 Webhook 系统](design-webhook.md)。
+**Shard the long sequence and the model.** The sketch lists Unified Sequence Parallelism (USP) and gives **CP4 + TP2** as an eight-GPU layout. Four-way context parallelism partitions the sequence into **18,432 token positions per context shard**, reducing per-rank activation pressure. Global attention still needs key and value information from the other context shards. Two-way tensor parallelism splits large layer operations and their weights across two GPUs for each context shard. Collectives exchange the partial results.
+
+**Optimize for the fabric and the workload.** Allocate the eight ranks together on a high-bandwidth interconnect and overlap communication with computation where the attention implementation supports it. Profile peak GPU memory, collective overhead, p95 inference latency, and GPU-seconds per completed video across output profiles. Tune context and tensor parallelism for each profile. If a smaller profile fits and meets its latency target on fewer GPUs, use the recovered capacity for independent jobs. Replicate inference groups to raise throughput.
+
+**Estimate the compute.** A rough count for dense weight matrix multiplies is `2 × parameters × tokens`. That gives **140 TFLOPs** for a 70B LLM processing 1,000 tokens. For a 30B DiT processing 73,728 video tokens over 50 denoising steps, it gives **about 221 PFLOPs**. If the model uses full bidirectional attention, the attention score and value products add roughly `4n²dLS` FLOPs for sequence length `n`, hidden width `d`, `L` layers, and `S` steps. Use the model's actual attention pattern for capacity estimates and measured wall-clock time to account for communication and utilization.
+
+Related case studies include [Job Scheduler](design-job-scheduler.md) and [Multi-Tenant Webhooks](design-webhook.md).

@@ -59,7 +59,7 @@ System-Design/
 | [异步系统设计复习：Kafka、Queue、Pub/Sub 与事件日志](Asychronous/messaging-system-design-review.md) | 用消息语义与读取模式两个维度理解 Kafka 的工作队列、发布订阅和持久日志用法 |
 | [案例分析：设计多租户 Webhook 系统](Asychronous/design-webhook.md) | 根据设计草图梳理订阅注册、事件路由、HTTP 投递、重试、分区顺序与安全要点 |
 | [案例分析：设计任务调度系统](Asychronous/design-job-scheduler.md) | 根据设计草图梳理任务提交、Worker 调度、状态与重试、容量估算，以及 Cron 和 DAG 扩展 |
-| [案例分析：设计视频生成平台](Asychronous/design-video-generator.md) | 异步提交、GPU 队列与租约、成品发布、签名下载及 Webhook 投递 |
+| [Design a Text-to-Video Generation Platform](Asychronous/design-video-generator.md) | DNS and CDN delivery, asynchronous jobs, GPU parallelism, and signed webhooks |
 
 ## 即时通讯系统（Instant Messaging System, IM）
 
