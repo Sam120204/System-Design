@@ -92,7 +92,21 @@ The sketch offers a ride to one driver at a time and waits about ten seconds for
 | **Decline or expire** | Close the offer and clear the reservation only if both records still reference that offer. Persist the next dispatch command if the ride is still eligible and time remains. |
 | **Finish or cancel** | Before pickup, cancellation closes an outstanding offer or releases the assigned driver in the same transaction. At drop-off, mark the ride complete and clear the driver's active assignment only if it still refers to that ride. |
 
-**Example race.** Two matching workers both get driver D from Redis. The first transaction changes D from `available` to `offered` for offer A. The second transaction fails its availability condition. If A expires and D receives offer B, a late acceptance for A fails the current-offer checks and leaves B intact. Those checks also keep a delayed expiry worker from releasing a newer reservation. Use `expires_at` in the transition logic and a scheduled job to free expired offers. DynamoDB TTL can clean up old records later. [DynamoDB transactions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html) · [DynamoDB TTL](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html)
+### How DynamoDB acts as a per-driver distributed lock
+
+A Redis-based design could acquire a short lease with `SET lock:driver:D offer-A NX PX 10000`. `NX` lets one worker create the lock while the key is absent, `PX` sets its lifetime, and `offer-A` identifies the owner. If the worker releases the lease early, it must check the owner and delete the key atomically so a delayed release cannot delete a newer lease. [Redis distributed locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/)
+
+In this design, **the conditional update to the driver's DynamoDB record serves the same role**. All matching workers reserve driver D through the same authoritative record. The transaction checks that D is `available`, changes the state to `offered`, and records `offer-A` as the reservation owner. It also reserves the ride and writes the notification event atomically. Even if many workers read `available` at the same time, only one can commit that transition. Workers can still reserve different drivers in parallel. Redis supplies nearby candidates, and DynamoDB decides who can receive an offer. [DynamoDB transactions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html)
+
+An offer stops being eligible for acceptance at its `expires_at` deadline. A scheduled job closes the expired offer and clears its reservation only if the ride and driver still point to that offer ID. If D moves on to offer B, a late accept or a delayed cleanup for A cannot change B. DynamoDB TTL can remove closed offer records later. [DynamoDB TTL](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html)
+
+### What happens when a Taylor Swift concert lets out?
+
+1. Hundreds of riders request a pickup near the venue. Several matching workers get the same nearby driver D from Redis, possibly before the location search reflects any change in availability.
+2. One worker reserves D and queues offer A. The other workers' reservations for D fail or conflict, so they try other candidates within the ride deadline. Only the committed transaction queues an offer for D during that reservation.
+3. If D accepts, the transaction moves D to `on_trip`, which keeps D out of subsequent reservations until the trip ends. If D declines or the offer expires, the transaction releases the reservation and the ride can move on to its next candidate.
+
+The reservation limits D to **one live offer at a time**. A short per-driver cooldown after a decline or timeout can also limit back-to-back offers during the surge. Store a `next_offer_at` timestamp when releasing the reservation and check it in the next reservation transaction. Push delivery can retry or arrive late, so include the offer ID and expiry, deduplicate by ID in the app, and fetch the current offer before displaying an actionable prompt.
 
 ## 5. Handling bursts and delays
 
