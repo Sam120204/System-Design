@@ -44,7 +44,7 @@ A **virtual node** is a token owned by a physical server. Assigning many tokens 
 
 The ring determines placement. For durable storage, replication and failure handling determine where existing copies can be read and when another replica may safely take writes. A planned membership change can stream the affected ranges, catch up concurrent writes, and cut over using an updated placement map. A cache can often let displaced keys refill on demand, with limits to protect the origin.
 
-Different systems use different placement mechanisms. Redis Cluster hashes keys into a fixed set of slots and changes which node owns a slot. It can move a subset of slots as membership changes. For a worked walkthrough of ring placement and data movement, see the repository's [consistent hashing case notes](<../../Instant Messaging System/consistent-hashing.md>).
+Different systems use different placement mechanisms. Redis Cluster hashes keys into a fixed set of slots and changes which node owns a slot. It can move a subset of slots as membership changes. For a worked walkthrough of ring placement and data movement, see the repository's [consistent hashing case notes](<../../06-Instant Messaging System/consistent-hashing.md>).
 
 ## Source
 

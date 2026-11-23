@@ -41,4 +41,4 @@ L4 products can forward packets, translate addresses, or proxy connections depen
 
 ## Design example
 
-An API edge uses one public hostname. An L7 proxy routes `/api` to an application pool and `/images` to an image pool. Each pool can scale independently. A separate gRPC-aware balancing policy spreads internal RPCs, and the WebSocket gateway pool is sized by open connections and fan-out throughput. Observe backend error rates, latency, pool saturation, and distribution across instances. [Cloud load balancing note](<../../web development/云负载均衡详解.md>)
+An API edge uses one public hostname. An L7 proxy routes `/api` to an application pool and `/images` to an image pool. Each pool can scale independently. A separate gRPC-aware balancing policy spreads internal RPCs, and the WebSocket gateway pool is sized by open connections and fan-out throughput. Observe backend error rates, latency, pool saturation, and distribution across instances. [Cloud load balancing note](<../../03-web development/云负载均衡详解.md>)

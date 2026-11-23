@@ -53,7 +53,7 @@ Idempotency-Key: 8e03978e-740c-4c2e-abd1-52f427d5c177
 2. **Coordinate overlapping attempts.** If the same request arrives while the booking is in progress, wait for the original or return an in-progress response. Reject a key reused with different inputs.
 3. **Reuse the outcome.** Once the booking completes, a retry can return the original booking ID and result. Use a stable operation ID for the internal inventory and payment calls so they can deduplicate their own retries and recover an uncertain outcome after a crash.
 
-Document how long the service retains the key and result. The retention period should cover the supported retry window. [Timeouts and retries](../networking-fundamentals/15-timeouts-retries-backoff-and-jitter.md) · [Payment design case](../../Internal-Consistency-System/design-payment-stripe.md)
+Document how long the service retains the key and result. The retention period should cover the supported retry window. [Timeouts and retries](../networking-fundamentals/15-timeouts-retries-backoff-and-jitter.md) · [Payment design case](../../07-Internal-Consistency-System/design-payment-stripe.md)
 
 ## Secure and protect the contract
 

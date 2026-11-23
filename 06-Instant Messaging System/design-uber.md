@@ -30,7 +30,7 @@ Focus on on-demand rides with one vehicle class. Scheduled rides, ratings, payme
 4. **Match and notify.** A matching worker queries Redis for nearby candidates, ranks a shortlist by estimated pickup time, and reserves a driver in DynamoDB before sending an offer. The notification service uses APNs or FCM to alert the driver. Acceptance commits the assignment, and the service publishes the new ride state to both apps.
 5. **Track the trip.** The driver app reports pickup and drop-off. The ride service checks that the driver owns the ride and that each transition is valid. The rider sees near-real-time status and driver position over an authenticated live connection while the app is active. On reconnect, the app fetches a fresh ride snapshot. A push notification can prompt that fetch when the app is in the background.
 
-The sketch shows the gateway feeding a ride request queue directly. Writing the ride and its dispatch command first adds an immediately readable ride record and lets the relay recover if the API process crashes after commit. [Stripe case study on the transactional outbox](<../Internal-Consistency-System/design-payment-stripe.md#4-qa--at-high-qps-how-do-you-choose-between-outbox-and-kafka-first>)
+The sketch shows the gateway feeding a ride request queue directly. Writing the ride and its dispatch command first adds an immediately readable ride record and lets the relay recover if the API process crashes after commit. [Stripe case study on the transactional outbox](<../07-Internal-Consistency-System/design-payment-stripe.md#4-qa--at-high-qps-how-do-you-choose-between-outbox-and-kafka-first>)
 
 ### Core entities
 
@@ -73,7 +73,7 @@ The sketch shows the gateway feeding a ride request queue directly. Writing the 
 
 For example, a 500-metre restaurant search might intersect a single coarse cell with 2,000 listings, only 30 of which are within the radius. A quadtree can skip leaves elsewhere in that cell. Finer geohash prefixes can also reduce the candidate set at the cost of more prefix lookups. If all 2,000 listings are inside the requested area, either index still has to account for them when returning a complete result set.
 
-Start with the index your storage layer already supports if it meets the freshness and latency targets. Evaluate an adaptive tree if benchmarks show that coarse cells inspect too many candidates and finer cells require too many lookups. The Yelp case study works through both a snapshot-backed quadtree and a database-managed geohash index. [Yelp nearby business search case study](../data-retrieval-caching-and-indexing/design-yelp.md)
+Start with the index your storage layer already supports if it meets the freshness and latency targets. Evaluate an adaptive tree if benchmarks show that coarse cells inspect too many candidates and finer cells require too many lookups. The Yelp case study works through both a snapshot-backed quadtree and a database-managed geohash index. [Yelp nearby business search case study](../04-data-retrieval-caching-and-indexing/design-yelp.md)
 
 **Baseline.** Use regional Redis geospatial sorted sets with `GEOADD` to update positions and `GEOSEARCH` to get a shortlist by radius. A small metro can start with one key. For hot metros, split the index into geographic keys, query every key intersecting the search area, and deduplicate driver IDs. If a driver changes cells, old and new entries may coexist briefly. Use the latest version to skip old entries and clean them up asynchronously. [Redis GEOSEARCH](https://redis.io/docs/latest/commands/geosearch/)
 

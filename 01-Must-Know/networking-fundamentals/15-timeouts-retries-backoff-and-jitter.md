@@ -10,7 +10,7 @@ A **timeout** bounds how long an attempt waits. A **deadline** bounds how long t
 
 Set an end-to-end deadline and pass the remaining time to downstream calls. Account for connection setup, request transmission, queueing, response time, and retry waits. Some client libraries expose separate timeouts for DNS, connecting, TLS, or reading, so confirm what the chosen configuration covers. Use production latency distributions and an acceptable false-timeout rate to select values. Cancel work when practical as the remaining budget expires.
 
-Timeouts can leave an ambiguous outcome. For example, a payment provider may complete a charge just before the caller stops waiting. A retry can safely refer to the same logical charge when the provider supports a durable idempotency key. Record or reconcile the result before telling the user the charge failed. [Stripe payment design case](../../Internal-Consistency-System/design-payment-stripe.md)
+Timeouts can leave an ambiguous outcome. For example, a payment provider may complete a charge just before the caller stops waiting. A retry can safely refer to the same logical charge when the provider supports a durable idempotency key. Record or reconcile the result before telling the user the charge failed. [Stripe payment design case](../../07-Internal-Consistency-System/design-payment-stripe.md)
 
 ## Decide when to retry
 

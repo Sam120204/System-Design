@@ -10,20 +10,20 @@ Global routing can use DNS responses or a global proxy. DNS can select endpoints
 
 A region needs enough healthy capacity, the right data, and working dependencies. Nearest by map distance can differ from lowest network latency. A nearby frontend that calls an origin or database across an ocean on every request still pays that cross-region round trip.
 
-For geographically scoped work, partition data by the location that owns the operation. A rider searching for nearby drivers in Miami can reach the service and spatial index for that market. Driver matching stays local, while global account or billing data can follow a separate ownership policy. Route by pickup location when it determines the market. [Ride-matching design](<../../Instant Messaging System/design-uber.md>) · [Sharding](../sharding/README.md)
+For geographically scoped work, partition data by the location that owns the operation. A rider searching for nearby drivers in Miami can reach the service and spatial index for that market. Driver matching stays local, while global account or billing data can follow a separate ownership policy. Route by pickup location when it determines the market. [Ride-matching design](<../../06-Instant Messaging System/design-uber.md>) · [Sharding](../sharding/README.md)
 
 ## How a CDN works at each edge location
 
 A **content delivery network (CDN)** runs servers at many edge locations called **points of presence (PoPs)**. A PoP usually has multiple edge servers and can serve as a nearby entry point for users. The **origin** is the application server or storage service that supplies the content. A deployment can have dozens of PoPs in front of an origin in one region, or it can route from its PoPs to origins in several regions.
 
-![CDN architecture sketch showing load balancers and edge servers at two PoPs, mid-tier caches, and the origin](<../../Layered Architecture/assets/cdn-full-design.png>)
+![CDN architecture sketch showing load balancers and edge servers at two PoPs, mid-tier caches, and the origin](<../../02-Layered Architecture/assets/cdn-full-design.png>)
 
 ### Follow a request from the browser
 
 1. **Reach a PoP.** The browser resolves the site's hostname to a CDN address. DNS-based steering, anycast routing, or both direct the connection to a reachable PoP. With anycast, multiple PoPs advertise the same IP prefix, and network routing selects a path. Network policies and health can affect which PoP the browser reaches. Inside the PoP, the CDN directs the request to an edge server.
 2. **Look up the response.** The edge typically terminates HTTPS, applies the site's cache policy, and looks in its cache using a key based on the host, path, and any configured variants. For example, if a query parameter changes the size of an image, the key needs to distinguish those sizes.
 3. **Handle a hit or a miss.** On a fresh hit, the edge returns the response without contacting the origin. On a miss, it requests the object from an optional **regional cache**, also called an **origin shield**, or goes directly to the origin. A shield lets nearby PoPs share cached objects and can combine concurrent requests for the same object before they reach the origin. On an expired entry, the CDN can revalidate it with the origin using an `ETag` and reuse the stored bytes if the origin returns `304 Not Modified`.
-4. **Fill the cache.** When the upstream returns a cacheable response, the edge stores it and returns it to the browser. Other PoPs fill their caches as requests arrive, so the same request can hit in one location and miss in another. A **time to live (TTL)** limits how long a cached response stays fresh. Use versioned URLs for new static assets and purge cached copies when a response at the same URL must be refreshed before its TTL expires. [HTTP caching](06-http.md) · [CDN design case](<../../Layered Architecture/Cloudflare-Design-CDN.md>)
+4. **Fill the cache.** When the upstream returns a cacheable response, the edge stores it and returns it to the browser. Other PoPs fill their caches as requests arrive, so the same request can hit in one location and miss in another. A **time to live (TTL)** limits how long a cached response stays fresh. Use versioned URLs for new static assets and purge cached copies when a response at the same URL must be refreshed before its TTL expires. [HTTP caching](06-http.md) · [CDN design case](<../../02-Layered Architecture/Cloudflare-Design-CDN.md>)
 
 ### Connect the edge to application regions
 

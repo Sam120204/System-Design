@@ -251,4 +251,4 @@ Score Service 是业务写入入口；本方案的 DB 是 source of truth，Redi
 - [Redis Sorted Sets Explained（视频）](https://youtu.be/MUKlxdBQZ7g)：你提供的教程链接，用排行榜理解 Sorted Set。
 - [Redis Sorted Sets 官方文档](https://redis.io/docs/latest/develop/data-types/sorted-sets/)：数据类型与命令示例。
 - [Data Retrieval: A System Design Approach](data-retrieval-system-design-approach.md)：按查询需求选择数据结构。
-- [异步处理与消息系统](../Asychronous/asynchronous-processing.md)：消息投递、重试、幂等与日志重放。
+- [异步处理与消息系统](../05-Asychronous/asynchronous-processing.md)：消息投递、重试、幂等与日志重放。

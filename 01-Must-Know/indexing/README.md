@@ -32,7 +32,7 @@ flowchart LR
 
 In the transcript's example, **100 million users ÷ about 100 rows per page ≈ 1 million pages**. At an assumed 100 microseconds per read, one million serialized page reads would take about **100 seconds**. Prefetching, sequential I/O, cached pages, and parallelism change the time substantially. Page size and rows per page also vary by engine and schema.
 
-With a suitable index, the engine looks up the requested key and uses the resulting row identifiers to fetch the relevant data pages. A B-tree can traverse only the index pages it needs, with frequently used pages often already in memory. Depending on the engine, some queries can return values directly from a covering index. Every additional index uses storage and adds maintenance to inserts, deletes, and updates that affect its contents. [Storage and caching overview](../../data-retrieval-caching-and-indexing/overview.md)
+With a suitable index, the engine looks up the requested key and uses the resulting row identifiers to fetch the relevant data pages. A B-tree can traverse only the index pages it needs, with frequently used pages often already in memory. Depending on the engine, some queries can return values directly from a covering index. Every additional index uses storage and adds maintenance to inserts, deletes, and updates that affect its contents. [Storage and caching overview](../../04-data-retrieval-caching-and-indexing/overview.md)
 
 ## B-tree indexes
 
@@ -90,7 +90,7 @@ For a nearby-business search, cover the requested area with geohash cells, look 
 
 ![Quadtree sketch showing repeated splitting of a dense quadrant with a five-point threshold](images/quadtree.png)
 
-A quadtree divides a region into four quadrants. The transcript's Yelp example treats each business as a point and splits a leaf when it exceeds five points. Dense areas become smaller cells, while sparse areas remain larger. A radius or bounding-box query visits each overlapping branch and skips branches outside the search area, then checks the remaining candidates. An in-memory quadtree is a useful option for mostly stable points when you can rebuild it from a durable source. [Yelp design case](../../data-retrieval-caching-and-indexing/design-yelp.md)
+A quadtree divides a region into four quadrants. The transcript's Yelp example treats each business as a point and splits a leaf when it exceeds five points. Dense areas become smaller cells, while sparse areas remain larger. A radius or bounding-box query visits each overlapping branch and skips branches outside the search area, then checks the remaining candidates. An in-memory quadtree is a useful option for mostly stable points when you can rebuild it from a durable source. [Yelp design case](../../04-data-retrieval-caching-and-indexing/design-yelp.md)
 
 ### R-tree
 

@@ -20,7 +20,7 @@ Target **p99 under 300 ms** for job creation, **p99 under 200 ms** for status re
 | `api.example.com` | Public address of the regional load balancer or managed API gateway | The client connects over HTTPS to submit a job, poll status, or request its content URL. The ingress routes the HTTP request to a healthy backend. |
 | `media.example.com` | CDN distribution hostname, typically via a CNAME | The client follows the API's short-lived signed URL and connects to a CDN edge. The CDN validates the signature and expiry before serving a cached object or fetching it from the private object storage origin. |
 
-The DNS resolver caches the address according to its TTL, so changing a record takes time to reach clients. Depending on the CDN, DNS can steer clients to an edge address, or DNS can return an anycast address and let network routing select the point of presence. The signed URL's expiry is independent of the DNS TTL. Outbound webhook workers also resolve registered callback hostnames and check resolved destinations against the service's egress policy before connecting. [CDN routing deep dive](<../Layered Architecture/Cloudflare-Design-CDN.md>)
+The DNS resolver caches the address according to its TTL, so changing a record takes time to reach clients. Depending on the CDN, DNS can steer clients to an edge address, or DNS can return an anycast address and let network routing select the point of presence. The signed URL's expiry is independent of the DNS TTL. Outbound webhook workers also resolve registered callback hostnames and check resolved destinations against the service's egress policy before connecting. [CDN routing deep dive](<../02-Layered Architecture/Cloudflare-Design-CDN.md>)
 
 ## 2. GPU execution pipeline
 
