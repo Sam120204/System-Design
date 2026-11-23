@@ -26,6 +26,8 @@ System-Design/
 
 [Networking Fundamentals for System Design](Must-Know/networking-fundamentals/README.md) covers the OSI model, IP, transport and application protocols, load balancing, regionalization, retries, and circuit breakers.
 
+[Indexing](Must-Know/indexing/README.md) explains page scans, B-trees, hash indexes, geospatial indexes, and inverted indexes with worked examples.
+
 ## Layered Architecture
 
 [Design Overview](<Layered Architecture/design overview.md>) explains responsibility and topology layering. The [CI/CD case study](<Layered Architecture/CICD/Giuhub-Action-Case.md>) applies control and data planes to workflow scheduling and runner feedback. [Cloudflare: Design a CDN](<Layered Architecture/Cloudflare-Design-CDN.md>) explains POP routing, pull versus push, parent caches, and global invalidation.
