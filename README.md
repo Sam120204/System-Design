@@ -12,8 +12,7 @@ System-Design/
 ├── web development/     # Web 基础、扩容、数据库与术语
 │   └── images/          # Web 笔记引用的架构图
 ├── Asychronous/         # 异步处理与消息系统
-├── Instant Messaging System/  # IM 系统设计与数据分片
-├── Real-Time Systems/         # Real-time location and ride matching
+├── Instant Messaging System/  # 即时通讯、数据分片与实时系统案例
 ├── Internal-Consistency-System/ # 内部一致性与系统设计案例
 ├── Derived Data System/       # Derived data systems
 ├── data-retrieval-caching-and-indexing/  # Caching and indexing
@@ -64,7 +63,7 @@ System-Design/
 
 ## 即时通讯系统（Instant Messaging System, IM）
 
-[阅读指南](<Instant Messaging System/README.md>) 汇总一对一聊天、群聊与一致性哈希。
+[阅读指南](<Instant Messaging System/README.md>) 汇总一对一聊天、群聊、一致性哈希与实时叫车案例。
 
 | 笔记（Note） | 内容（Topics） |
 | --- | --- |
@@ -72,10 +71,7 @@ System-Design/
 | [WhatsApp: Design 1-1 Chat](<Instant Messaging System/whatsapp-design-1-1-chat.md>) | 经典系统设计面试题：在线消息投递、离线消息同步与设计草图 |
 | [Slack: Design Group Chat](<Instant Messaging System/slack-design-group-chat.md>) | CQRS + Pub/Sub、存储分片与 Kafka、地域 Gateway、分散式 Proxy、频道内存状态与故障恢复，以及 Dispatcher / Pub/Sub Q&A |
 | [一致性哈希：服务器数量变化时如何减少数据迁移](<Instant Messaging System/consistent-hashing.md>) | 对比取模映射、哈希环与虚拟节点，说明扩缩容时的迁移范围及实际数据搬迁步骤 |
-
-## Real-Time Systems
-
-[Design Uber: Real-Time Ride Matching](<Real-Time Systems/design-uber.md>) covers driver location updates, geohashing and quadtrees, and how to assign each ride to one driver without double-booking. [Reading guide](<Real-Time Systems/README.md>)
+| [Design Uber: Real-Time Ride Matching](<Instant Messaging System/design-uber.md>) | Live driver locations, geohashes and quadtrees, and one-to-one ride assignment |
 
 ## 内部一致性与设计案例（Internal Consistency and Design Cases）
 
