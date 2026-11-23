@@ -14,7 +14,15 @@ Several app instances can share Redis or Memcached for objects such as profiles 
 
 ![A client reads through a nearby CDN edge that can reach the origin server](https://www.hellointerview.com/_next/static/media/8-VTEX8ILxuC.1qposik0ha4oq.svg)
 
-A CDN PoP can return a cached image, video segment, or public response without a trip to the origin. A miss reaches a higher cache tier or the origin and can fill the edge cache. Decide which fields change the response and therefore belong in its cache key. Restrict shared caching of personalized content. [Edge locations and origin routing](../networking-fundamentals/14-regionalization.md#how-a-cdn-works-at-each-edge-location)
+A content delivery network (CDN) operates edge locations called **points of presence (PoPs)**. They can cache images, video segments, static HTML, and public API responses according to the application's cache policy.
+
+1. A user in India requests a product image whose origin is in Virginia. CDN routing directs the request to an edge location close to the user on the network.
+2. On a **cache hit**, the edge returns its fresh copy directly. On a **cache miss**, the edge fetches from an upstream CDN cache or the origin, then stores the response if its policy permits.
+3. Later requests for the same image and cache key can hit that edge while the cached response remains fresh. Another edge may still have to fetch a copy.
+
+The source article illustrates the latency difference with roughly **250–300 ms** for the distant origin and **20–40 ms** for a nearby edge hit. These numbers are illustrative. Actual latency depends on routing, cache state, and response size. [CDN example · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/caching#cdn-content-delivery-network)
+
+If an image-sizing parameter changes the response, include it in the cache key. Versioned asset URLs let you publish updates under new keys. Give changing public responses a freshness policy, and restrict shared caching for personalized responses. [Edge locations and origin routing](../networking-fundamentals/14-regionalization.md#how-a-cdn-works-at-each-edge-location)
 
 ### Client-side cache
 
@@ -67,6 +75,12 @@ The application asks a cache abstraction for a value. That abstraction owns the 
 - **Stampede.** When a popular entry expires, many callers can try to rebuild it. Coalesce requests for the same key so one fetch is in flight. Jitter TTLs across keys to spread simultaneous expirations. Early refresh or serving a stale version during refresh can help where freshness rules permit.
 - **Hot key.** A key can overload one cache node even with a high hit rate. Short-lived local copies or replicated reads can spread load. Track per-key and per-shard traffic to see whether the bottleneck is one object or a whole shard. [Consistent Hashing](../consistent-hashing/README.md#virtual-nodes-and-hot-keys)
 - **Cache outage.** Rate-limit or shed fallback traffic when the database cannot handle the full uncached load. Track hit rate, misses, eviction, origin QPS, and tail latency together.
+
+## Worked example of a profile cache
+
+Suppose profile pages drive 500 reads per second against the database at peak. With a 95% hit rate in a shared cache, about 25 reads per second would reach the database on steady-state misses, excluding refresh and write traffic.
+
+Use cache-aside with a key such as `profile:user_42`. Choose a TTL based on how much profile staleness the product can tolerate and use LRU if older reads are less likely to recur. After a profile edit commits, invalidate the cached copy. Coalesce repeated misses for the same profile and bound database fallback during a cache outage. Compare latency and origin load for warm, cold, and unavailable cache states.
 
 ## Source
 
