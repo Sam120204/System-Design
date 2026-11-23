@@ -8,6 +8,7 @@
 System-Design/
 ├── README.md
 ├── LICENSE
+├── Must-Know/             # System design fundamentals and interview notes
 ├── Layered Architecture/ # Control plane and data plane responsibilities
 ├── web development/     # Web 基础、扩容、数据库与术语
 │   └── images/          # Web 笔记引用的架构图
@@ -20,6 +21,10 @@ System-Design/
 │   └── assets/          # 系统设计案例的架构图
 └── Kubernetes/          # 容器编排与部署实践
 ```
+
+## Must-Know
+
+[Networking Fundamentals for System Design](Must-Know/networking-fundamentals/README.md) covers the OSI model, IP, transport and application protocols, load balancing, regionalization, retries, and circuit breakers.
 
 ## Layered Architecture
 
