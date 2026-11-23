@@ -1,6 +1,6 @@
 # Networking Fundamentals for System Design
 
-This guide follows a request from the network to the application, then looks at how to route traffic and handle failures. Each note includes a cropped figure from the original networking reference, a design example, and trade-offs.
+This guide follows a request from the network to the application, then looks at how to route traffic and handle failures. It includes the source article's diagrams and the original screenshots. Where both show the same figure, select the diagram to open the local screenshot. [Networking Essentials · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/networking-essentials)
 
 ![Networking essentials outline covering transport, application protocols, load balancing, and reliability](images/networking-essentials.png)
 

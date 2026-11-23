@@ -10,6 +10,8 @@ Global routing can use DNS responses or a global proxy. DNS can select endpoints
 
 A region needs enough healthy capacity, the right data, and working dependencies. Nearest by map distance can differ from lowest network latency. A nearby frontend that calls an origin or database across an ocean on every request still pays that cross-region round trip.
 
+For geographically scoped work, partition data by the location that owns the operation. A rider searching for nearby drivers in Miami can reach the service and spatial index for that market. Driver matching stays local, while global account or billing data can follow a separate ownership policy. Route by pickup location when it determines the market. [Ride-matching design](<../../Instant Messaging System/design-uber.md>) · [Sharding](../sharding/README.md)
+
 ## How a CDN works at each edge location
 
 A **content delivery network (CDN)** runs servers at many edge locations called **points of presence (PoPs)**. A PoP usually has multiple edge servers and can serve as a nearby entry point for users. The **origin** is the application server or storage service that supplies the content. A deployment can have dozens of PoPs in front of an origin in one region, or it can route from its PoPs to origins in several regions.

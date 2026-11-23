@@ -26,3 +26,5 @@ Stateless interactions mean each request carries the information needed to under
 ## Design example
 
 A document service accepts an export request and returns a job URL. Clients can read the job state over HTTP or subscribe to progress with SSE. Once the job succeeds, its representation can contain a link to the completed export. The client can reconnect or poll by job ID without duplicating work. [Server-Sent Events](10-server-sent-events.md)
+
+For a complete example that includes request parameters, errors, and access control, see the ticket-booking contract in [API Design](../api-design/README.md).

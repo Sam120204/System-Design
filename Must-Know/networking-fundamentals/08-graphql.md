@@ -2,7 +2,11 @@
 
 GraphQL defines a typed schema and a language clients use to select fields. A query reads data, a mutation requests a change, and a subscription describes a stream of results. A web app can send GraphQL queries and mutations to a GraphQL endpoint with the browser's standard `fetch()` API.
 
-![GraphQL motivation sketch showing a screen making separate requests for the data each part needs](images/graphql-motivation.png)
+[![A screen makes separate requests for profiles, status, and groups](https://www.hellointerview.com/_next/static/media/KXYfVUzeUMyb.0bu2-gaifwajx.svg)](images/graphql-motivation.png)
+
+A screen can make several fixed-shape requests or use one aggregate endpoint. If that aggregate serves several clients, some may receive fields they never use. GraphQL lets clients select fields from a shared schema.
+
+![A screen makes one request to an endpoint designed to return everything it might need](https://www.hellointerview.com/_next/static/media/tjntWW1DLrY-.2jgeqs5x5-efz.svg)
 
 ## How a query executes
 

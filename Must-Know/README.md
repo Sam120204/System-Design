@@ -1,5 +1,12 @@
 # Must-Know System Design Topics
 
-[Networking Fundamentals for System Design](networking-fundamentals/README.md) explains how requests travel, how to choose protocols, and how to keep distributed services available when dependencies slow down or fail.
-
-[Indexing](indexing/README.md) explains how databases find rows and how to choose an index for equality, range, location, and text queries.
+| Topic | What it covers |
+| --- | --- |
+| [Networking Fundamentals](networking-fundamentals/README.md) | Protocols, load balancing, regional routing, and failure handling |
+| [API Design](api-design/README.md) | REST, GraphQL, RPC, pagination, idempotency, and security |
+| [Data Modeling](data-modeling/README.md) | Database models, relationships, constraints, and access patterns |
+| [Indexing](indexing/README.md) | Table scans and indexes for equality, range, location, and text queries |
+| [Caching](caching/README.md) | Cache placement, read and write patterns, expiry, and hot keys |
+| [Sharding](sharding/README.md) | Shard keys, query routing, cross-shard work, and migrations |
+| [Consistent Hashing](consistent-hashing/README.md) | Hash rings, virtual nodes, and key placement as nodes change |
+| [CAP Theorem](cap-theorem/README.md) | Consistency and availability during a network partition |

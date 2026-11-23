@@ -4,7 +4,7 @@ HTTP defines requests and responses. A request carries a method, a target, heade
 
 ## Read a request and response
 
-![Annotated HTTP request and response showing the method, request headers, status code, response headers, and body](images/http-request-and-response.png)
+[![Annotated HTTP request and response showing the method, request headers, status code, response headers, and body](https://www.hellointerview.com/_next/static/media/H1gTar0isNJz.1pa8cxsbnoo8a.svg)](images/http-request-and-response.png)
 
 ```http
 GET /products/42 HTTP/1.1

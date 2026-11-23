@@ -4,7 +4,7 @@ Web Real-Time Communication (WebRTC) lets browsers and other clients exchange en
 
 ## How two endpoints connect
 
-![WebRTC setup sketch showing signaling, STUN, TURN, and the peer media path](images/webrtc-connection.png)
+[![WebRTC setup sketch showing signaling, STUN, TURN, and the peer media path](https://www.hellointerview.com/_next/static/media/L9DTCrHV_4vT.3ykrwp-md8inq.svg)](images/webrtc-connection.png)
 
 1. **Signaling.** The peers exchange an offer and answer containing session descriptions, such as media types, codecs, and transport parameters. They also exchange ICE candidates.
 2. **ICE candidate gathering.** Interactive Connectivity Establishment collects possible paths. These include local addresses, addresses learned through a STUN server, and relay addresses allocated from a TURN server.

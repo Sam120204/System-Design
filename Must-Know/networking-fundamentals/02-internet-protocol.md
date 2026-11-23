@@ -16,6 +16,10 @@ IP moves packets between networks using source and destination addresses. Router
 
 The public-looking examples above use reserved documentation ranges. A hostname is a separate identifier. DNS can map one hostname to multiple IPv4 or IPv6 addresses, and an application can use the hostname to select a TLS identity or an HTTP virtual host. [IPv6 specification](https://www.rfc-editor.org/rfc/rfc8200.html)
 
+## DNS resolution and traffic steering
+
+A resolver looks up records for a hostname, such as `A` for IPv4 or `AAAA` for IPv6, and can cache answers for their time to live (TTL). A service can return different endpoints by region or health. A DNS change takes effect as cached answers age out and clients make new connections, so it is useful for steering new traffic during failover. [Regionalization](14-regionalization.md)
+
 ## Routing, public reachability, and NAT
 
 **Longest prefix match.** When a destination matches several routes, the router forwards using the most specific matching prefix. A route to `10.20.4.0/24` takes priority over `10.20.0.0/16` for destination `10.20.4.25`. A default route such as `0.0.0.0/0` or `::/0` matches when a more specific route is unavailable.

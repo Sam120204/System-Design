@@ -2,7 +2,7 @@
 
 WebSockets provide a long-lived, bidirectional message channel between a client and a server. Either side can send text or binary messages after the connection opens. This fits interactive applications such as chat, collaborative editing, and control interfaces where both sides send frequent updates.
 
-![WebSocket ticker example showing client subscribe and unsubscribe messages and server price updates](images/websocket-messages.png)
+[![WebSocket ticker example showing client subscribe and unsubscribe messages and server price updates](https://www.hellointerview.com/_next/static/media/DElga39lrtz-.1cd_jfppgwy_q.svg)](images/websocket-messages.png)
 
 ## Connection lifecycle
 

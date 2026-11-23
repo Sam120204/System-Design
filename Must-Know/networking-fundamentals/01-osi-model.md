@@ -2,7 +2,7 @@
 
 The Open Systems Interconnection model describes networking as seven layers. Each layer has a job, such as carrying bits across a link, forwarding packets between networks, or interpreting an HTTP request. Modern Internet protocols often combine responsibilities that the OSI model describes separately.
 
-![Seven-layer OSI stack highlighting the application, transport, and network layers](images/osi-model.png)
+[![Seven-layer OSI stack highlighting the application, transport, and network layers](https://www.hellointerview.com/_next/static/media/B5c4KEuENPxB.2r7-h61f15b1u.svg)](images/osi-model.png)
 
 | Layer | Responsibility | Examples or concepts |
 | --- | --- | --- |
@@ -16,9 +16,9 @@ The Open Systems Interconnection model describes networking as seven layers. Eac
 
 ## Follow an HTTPS request
 
-![Reference connection timeline showing TCP setup, an HTTP exchange, and TCP teardown across the IP, TCP, and HTTP layers](images/http-over-tcp-and-ip.png)
+[![Timeline showing TCP setup, an HTTP exchange, and TCP teardown across the IP, TCP, and HTTP layers](https://www.hellointerview.com/_next/static/media/cvOR4cCwIO9k.0h5q3zu7d0tfu.svg)](images/http-over-tcp-and-ip.png)
 
-Suppose a browser sends an HTTP/1.1 request to an origin over an existing TCP and TLS connection. HTTP defines the request, TLS protects its bytes in records, TCP carries those bytes in a stream, IP routes the resulting packets, and the local network carries packets in frames. TCP segment boundaries can differ from TLS records and HTTP messages.
+The diagram shows one HTTP exchange over a new TCP connection. When a browser starts a new HTTPS connection over TCP, it resolves the hostname through DNS if needed, establishes TCP, and negotiates TLS before sending the HTTP request in the usual handshake. HTTP defines the request, TLS protects its bytes in records, TCP carries those bytes in a stream, IP routes the resulting packets, and the local network carries packets in frames. TCP segment boundaries can differ from TLS records and HTTP messages. A browser can reuse an open connection for later requests.
 
 ```text
 HTTP request bytes → TLS records → TCP segments → IP packets → link frames

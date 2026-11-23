@@ -24,9 +24,7 @@ System-Design/
 
 ## Must-Know
 
-[Networking Fundamentals for System Design](Must-Know/networking-fundamentals/README.md) covers the OSI model, IP, transport and application protocols, load balancing, regionalization, retries, and circuit breakers.
-
-[Indexing](Must-Know/indexing/README.md) explains page scans, B-trees, hash indexes, geospatial indexes, and inverted indexes with worked examples.
+[Must-Know System Design Topics](Must-Know/README.md) links to the guides on networking, API design, data modeling, indexing, caching, sharding, consistent hashing, and the CAP theorem.
 
 ## Layered Architecture
 

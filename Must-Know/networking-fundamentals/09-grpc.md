@@ -40,6 +40,6 @@ HTTP/2 lets multiple RPCs share a connection. If an L4 balancer pins that connec
 
 ## Design example
 
-![Architecture sketch using HTTP at the web edge and gRPC between internal services](images/grpc-internal-services.png)
+[![Architecture sketch using HTTP at the web edge and gRPC between internal services](https://www.hellointerview.com/_next/static/media/QPaz7gvLzESP.1r3w08bh_nq7-.svg)](images/grpc-internal-services.png)
 
 A checkout service calls `GetStock` to display current availability and uses a separate reservation operation to enforce the stock limit at write time. The lookup can use a short deadline and a bounded retry for eligible failures. A retried reservation needs a stable request ID and deduplication at the inventory service because the previous attempt might have reserved stock before the client timed out. [Timeouts and Retries](15-timeouts-retries-backoff-and-jitter.md)
