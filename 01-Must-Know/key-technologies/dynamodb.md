@@ -32,19 +32,33 @@ A **local secondary index (LSI)** keeps the base partition key and uses another 
 
 ## Consistency, replication, and capacity
 
-Base-table and LSI reads default to eventual consistency. Set `ConsistentRead=true` when the request needs to see acknowledged writes. To enforce a seat or inventory invariant under concurrent writers, use a conditional write or a transaction. A strongly consistent read followed by an unconditional write still allows a race.
+### Strong reads and the CAP theorem
+
+For a single-Region table, a **strongly consistent read** returns the item's latest committed value as of some instant between the start and end of the read. It reflects all writes that succeeded before the read began, even if a different client made them. This guarantee is called **linearizability**. Base-table and local secondary index (LSI) reads default to eventual consistency. Set `ConsistentRead=true` on an eligible request to ask for a strong read. Global secondary index (GSI) reads are always eventually consistent. [DynamoDB read consistency](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html)
+
+Suppose Alice reserves a seat and DynamoDB confirms the change from `AVAILABLE` to `BOOKED`. Bob then reads the same item. With no later update, a strong `GetItem` returns `BOOKED`. An eventually consistent read can briefly return `AVAILABLE` from a replica that has yet to receive the update.
+
+Now suppose a network split isolates one of three replicas before it receives the booking. The two connected replicas can form a **quorum** (a majority) and commit the write. Bob's strong read can still succeed if it reaches a replica authorized to serve the latest value. If the service cannot establish the current value, it must wait or fail the read to preserve **consistency**, sacrificing **availability** for that request. [CAP theorem](../cap-theorem/README.md) · [DynamoDB replication](https://www.hellointerview.com/learn/system-design/deep-dives/dynamodb)
+
+Use a conditional write to reserve the seat. Two buyers can both read `AVAILABLE` before either writes. A condition on `UpdateItem` checks that the seat is still available as part of the write, so only one reservation succeeds.
+
+### Regional and cross-Region replication
 
 DynamoDB replicates across Availability Zones within a Region. Global Tables extend replication across Regions. The default multi-Region eventual consistency mode (MREC) replicates asynchronously and uses last-writer-wins conflict resolution for concurrent updates to the same item. A strong local read in MREC still cannot see a remote write that has yet to arrive. Multi-Region strong consistency (MRSC) synchronously replicates writes and supports strong cross-Region reads, with region and feature constraints. State which mode your design assumes, especially when concurrent writes in different Regions affect correctness. [Global Tables consistency modes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/V2globaltables_HowItWorks.html)
 
+### Capacity
+
 On-demand capacity charges for used requests. Provisioned capacity sets a throughput budget that can use auto scaling. One WCU supports one standard write per second up to 1 KB. One RCU supports one strongly consistent read per second up to 4 KB or two eventually consistent reads per second of that size. Larger operations round up, and transactions and indexes add capacity consumption. A physical partition is designed to deliver up to 1,000 WCUs and 3,000 RCUs per second. Adaptive capacity can help with uneven load, but one hot item can still exceed what its partition can serve. [DynamoDB partition-key design](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html)
 
-## DAX and change streams
+## DAX and DynamoDB Streams
 
-DynamoDB Accelerator (DAX) caches eventually consistent reads, with separate caches for items and query results. Strong reads pass through to DynamoDB. Direct writes that bypass DAX can leave cached items stale until expiry. Writes through DAX update its item cache, while existing query results can remain cached until their own TTL. [How DAX works](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DAX.concepts.html)
+**DynamoDB Accelerator (DAX)** is an optional, managed **in-memory cache layer** in front of DynamoDB. It serves frequently requested items and query results from memory for eventually consistent reads. Strong reads pass through to DynamoDB. Direct writes to DynamoDB can leave cached items stale until expiry. Writes through DAX update its item cache, while existing query results can remain cached until their own TTL. [How DAX works](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DAX.concepts.html)
 
 ![DAX serves cached reads and forwards misses to DynamoDB](images/dynamodb/dax.svg)
 
-DynamoDB Streams captures item inserts, updates, and deletes, with records retained for up to 24 hours. A consumer can update [Elasticsearch](elasticsearch.md), invalidate a cache, or trigger a downstream process. Changes to one item appear in order in the stream. A consumer such as Lambda can still retry a batch, so use idempotent processing and monitor lag relative to the retention window. [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html)
+**DynamoDB Streams** provides **near-real-time change data capture (CDC)** for a table. It records item inserts, updates, and deletes, preserves the order of changes to each item, and retains change records for up to 24 hours. [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html)
+
+You can configure AWS Lambda to read the stream and invoke a function in batches. For example, when a product record changes, the function can update its [Elasticsearch](elasticsearch.md) index entry, invalidate cached product data, or replicate the change to a downstream data store. Lambda can retry a batch, so make writes idempotent and monitor processing lag against the stream's retention window. [Using AWS Lambda with DynamoDB](https://docs.aws.amazon.com/lambda/latest/dg/with-ddb.html)
 
 ## Interview practice
 

@@ -40,6 +40,8 @@ For a ticketing service, the seat map can be approximate while browsing. Confirm
 
 The behavior depends on the operation, replication protocol, and configuration. During a partition, a quorum-based service may keep the majority side operating while the minority cannot safely complete the same operation. Test a split as well as recovery, including how stale reads or conflicting writes become visible after communication returns.
 
+The [DynamoDB seat booking example](../key-technologies/dynamodb.md#strong-reads-and-the-cap-theorem) shows what a strong read and an eventual read can return after a confirmed write.
+
 ## Source
 
 [CAP Theorem · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/cap-theorem)
