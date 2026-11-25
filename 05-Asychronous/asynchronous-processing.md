@@ -299,6 +299,38 @@ Four terms are enough to start:
 
 For example, a website writes `PageViewed` and `ProductClicked` events to Kafka. Analytics and recommendations read them in separate consumer groups. A new analysis job can later read retained events without asking the website to produce them again. Kafka is especially useful for logs, user activity, real-time analysis, and data pipelines. For a simple “send one email, then remove the task” workflow, retries and per-task completion are usually easier with an ordinary queue.
 
+##### Kafka as a message queue or an event stream
+
+- **YouTube · background job queue.** Store the uploaded video in object storage and publish a `TranscodeVideo` job with the video ID and object key. Workers in one consumer group share the partitions and process the jobs asynchronously. The queue absorbs upload spikes while the worker pool transcodes at its own pace. [YouTube design](https://www.hellointerview.com/learn/system-design/problem-breakdowns/youtube)
+- **Ticketmaster · virtual waiting queue.** Key admission requests by `event_id` so requests for one sale land in one partition. An admission service consumes them in Kafka log order and releases users to the booking page at a controlled rate. The booking service still enforces seat holds and prevents double-booking. A single popular sale's ordered queue is limited to one partition. [Ticketmaster design](https://www.hellointerview.com/learn/system-design/problem-breakdowns/ticketmaster)
+- **Ad Click Aggregator · event stream.** Publish a click event with `event_id`, `ad_id`, and `event_time`. A stream processor such as Flink continuously reads the topic, groups clicks by ad and one-minute event-time window, and writes counts to an analytics store for dashboards and queries. An independent consumer can archive the raw events, and the processor can replay events within Kafka's retention window. [Ad Click Aggregator design](https://www.hellointerview.com/learn/system-design/problem-breakdowns/ad-click-aggregator) · [Ad event aggregation notes](../08-Derived%20Data%20System/ad-event-aggregation-system.md)
+
+##### Scaling brokers and topic partitions
+
+Start with peak messages per second, average message size, and retention. Estimate write throughput as `peak messages/s × average message size` and retained data as `average bytes/s × retention seconds × replication factor` before compression and overhead. Hello Interview gives a rough interview estimate of around **1 TB of stored data** and **up to 1 million messages per second** on one well-provisioned broker. Actual capacity depends on message size, hardware, batching, compression, replication, and read traffic. If one broker has enough capacity for the workload, focus the interview on the replicas needed for availability. [Hello Interview Kafka deep dive](https://www.hellointerview.com/learn/system-design/deep-dives/kafka)
+
+1. **Add brokers to increase cluster capacity.** Distribute partition replicas and leadership across the expanded cluster so the new brokers carry traffic. A topic needs enough partitions to spread its write load and keep its consumer group busy. With six partitions, at most six workers in a standard consumer group can actively consume that topic.
+2. **Plan partitions per topic.** A high-volume clicks topic may need many partitions while a low-volume configuration topic may need only a few. Choose a key that keeps records together when they need ordering and spreads traffic across partitions. For keyed records, the default Java producer maps the serialized key to `positive(murmur2(key)) % partition_count`. Increasing the partition count can change where new records for a key land, while older records stay where they were written. Plan for that change if consumers rely on per-key ordering.
+
+Managed services such as Confluent Cloud and Amazon MSK can handle parts of capacity management. The application still needs to choose topic partition counts and keys that match its workload and ordering requirements.
+
+##### Handling hot partitions
+
+If clicks are keyed by `ad_id`, a viral ad can overload one partition while others have spare capacity. Adding brokers or partitions alone keeps all new clicks for that ad on a single partition as long as they share one key. If the application can process an ad's clicks in parallel, spread them across partitions and merge the results.
+
+| Strategy | How it works | Trade-off |
+| --- | --- | --- |
+| **No key** | The default Java producer can send batches to one partition at a time and distribute batches across partitions over time. | Clicks for the same ad may land in several partitions, so there is no per-ad ordering guarantee. |
+| **Random salting** | Append a bucket number to `ad_id`, for example `ad_42:3`. Assign each click to one of a fixed number of buckets, using a random choice or a hash of `event_id` for repeatable placement. | Aggregate counts by `(ad_id, bucket, minute)` first, then sum the partial counts by `(ad_id, minute)`. |
+| **Compound key** | Combine `ad_id` with a field that varies within the ad's audience, such as region or a user bucket. | Ordering is scoped to the compound key. A dominant region can still produce a hot partition. |
+| **Backpressure** | Throttle or buffer ingress during a spike, using signals such as growing consumer lag or broker throttling. | Gives the pipeline time to catch up at the cost of higher latency or a lower accepted rate. A sustained hotspot still needs a capacity or partitioning change. |
+
+##### Fault tolerance and recovery
+
+- **Broker failure.** Each replicated partition has a leader and follower replicas on different brokers. Followers copy the leader's log, and Kafka normally elects a follower from the in-sync replica set (ISR) if the leader fails. Place replicas across availability zones when the cluster needs to survive a zone failure.
+- **Durable writes.** A common setup is replication factor `3`, producer `acks=all`, and topic `min.insync.replicas=2`. A write is acknowledged once all current in-sync replicas have it, and Kafka rejects writes if fewer than two replicas remain in sync. With two healthy in-sync replicas left after a broker failure, writes can continue after failover. Keep producer idempotence enabled so retrying a send after a transient error does not create a duplicate Kafka record.
+- **Consumer failure.** When a worker drops out, its consumer group reassigns the partitions and resumes from the last committed offsets. Commit offsets after successful processing for at-least-once handling. A crash after a side effect but before the commit can repeat the work, so use an idempotency key such as the video ID plus output format for a transcode job. [Apache Kafka documentation](https://kafka.apache.org/43/documentation/)
+
 ### 5.3 Compare the tradeoffs
 
 | Question | RabbitMQ | RocketMQ | Kafka |

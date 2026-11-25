@@ -110,3 +110,5 @@ Topic: orders
 - **可靠性边界**：Worker 处理成功后再提交 Offset，可降低丢任务风险，但崩溃后可能重复处理；先提交再处理则可能跳过未完成任务。外部副作用仍需幂等。
 
 **一句话记忆**：Kafka 是日志；**同组分摊**看起来像 Queue，**多组独立读取**看起来像 Pub/Sub。选型时还要检查保留、回放、重试和顺序需求。
+
+YouTube 转码、Ticketmaster 虚拟排队、广告点击流，以及分区扩容、热点和故障恢复的例子见 [Kafka 的实际用法](asynchronous-processing.md#kafka-as-a-message-queue-or-an-event-stream)。
