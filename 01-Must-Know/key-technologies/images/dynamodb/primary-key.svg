@@ -1,0 +1,21 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 611.86025141956 152.43977590588656" >
+  <!-- svg-source:excalidraw -->
+  <!-- payload-type:application/vnd.excalidraw+json --><!-- payload-version:2 -->
+  <defs>
+    <style class="style-fonts">
+      @font-face {
+        font-family: "Virgil";
+        src: url("https://files.hellointerview.com/build-assets/PRODUCTION/_next/static/media/Excalifont-s.p.436754fa.woff2");
+      }
+      @font-face {
+        font-family: "Cascadia";
+        src: url("https://file%2B.vscode-resource.vscode-cdn.net/Users/evanking/.cursor/extensions/pomdtr.excalidraw-editor-3.7.4/public//dist/excalidraw-assets/Cascadia.woff2");
+      }
+      @font-face {
+        font-family: "Assistant";
+        src: url("https://file%2B.vscode-resource.vscode-cdn.net/Users/evanking/.cursor/extensions/pomdtr.excalidraw-editor-3.7.4/public//dist/excalidraw-assets/Assistant-Regular.woff2");
+      }
+    </style>
+
+  </defs>
+  <rect x="0" y="0" width="611.86025141956" height="152.43977590588656" fill="#ffffff"></rect><g transform="translate(10 12.51847677222213) rotate(0 101.56995391845703 17.5)"><text x="0" y="0" font-family="Virgil, Segoe UI Emoji" font-size="28px" fill="#1e1e1e" text-anchor="start" style="white-space: pre;" direction="ltr" dominant-baseline="text-before-edge">Primary Key = </text></g><g transform="translate(216.41692702836917 13.806789769680108) rotate(0 105.62993621826172 17.5)"><text x="0" y="0" font-family="Virgil, Segoe UI Emoji" font-size="28px" fill="#2f9e44" text-anchor="start" style="white-space: pre;" direction="ltr" dominant-baseline="text-before-edge">{Partition Key}</text></g><g transform="translate(445.1496747958454 13.217159997842828) rotate(0 74.96995544433594 17.5)"><text x="0" y="0" font-family="Virgil, Segoe UI Emoji" font-size="28px" fill="#1971c2" text-anchor="start" style="white-space: pre;" direction="ltr" dominant-baseline="text-before-edge">{Sort Key}</text></g><g transform="translate(433.32552763078456 10) rotate(0 3.3879928588867188 17.5)"><text x="0" y="0" font-family="Virgil, Segoe UI Emoji" font-size="28px" fill="#1e1e1e" text-anchor="start" style="white-space: pre;" direction="ltr" dominant-baseline="text-before-edge">:</text></g><g stroke-linecap="round"><g transform="translate(541.5287516285107 97.41291604331855) rotate(0 0 -20.26612345889032)"><path d="M0.07 0.19 C0.04 -6.58, -0.43 -34.06, -0.47 -40.77 M-0.56 -0.19 C-0.39 -6.87, 0.53 -33.41, 0.52 -40.19" stroke="#74808b" stroke-width="2" fill="none"></path></g><g transform="translate(541.5287516285107 97.41291604331855) rotate(0 0 -20.26612345889032)"><path d="M7.09 -21.01 C5.88 -26.47, 3.54 -30.54, 0.52 -40.19 M7.09 -21.01 C4.89 -28.75, 2.21 -36.3, 0.52 -40.19" stroke="#74808b" stroke-width="2" fill="none"></path></g><g transform="translate(541.5287516285107 97.41291604331855) rotate(0 0 -20.26612345889032)"><path d="M-6.77 -21.28 C-4.65 -26.68, -3.65 -30.69, 0.52 -40.19 M-6.77 -21.28 C-3.55 -28.97, -0.8 -36.42, 0.52 -40.19" stroke="#74808b" stroke-width="2" fill="none"></path></g></g><mask></mask><g transform="translate(491.1483220982709 107.43977590588656) rotate(0 55.35596466064453 17.5)"><text x="0" y="0" font-family="Virgil, Segoe UI Emoji" font-size="28px" fill="#74808b" text-anchor="start" style="white-space: pre;" direction="ltr" dominant-baseline="text-before-edge">Optional</text></g></svg>

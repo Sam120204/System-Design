@@ -24,7 +24,7 @@ System-Design/
 
 ## Must-Know
 
-[Must-Know System Design Topics](01-Must-Know/README.md) links to the guides on networking, API design, data modeling, indexing, caching, sharding, consistent hashing, and the CAP theorem.
+[Must-Know System Design Topics](01-Must-Know/README.md) links to the guides on networking, API design, data modeling, indexing, caching, sharding, consistent hashing, and the CAP theorem. The [Key Technologies guide](01-Must-Know/key-technologies/README.md) covers Redis, Elasticsearch, Kafka, Temporal, API Gateway, Cassandra, and DynamoDB.
 
 ## Layered Architecture
 

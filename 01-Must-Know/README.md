@@ -10,3 +10,4 @@
 | [Sharding](sharding/README.md) | Shard keys, query routing, cross-shard work, and migrations |
 | [Consistent Hashing](consistent-hashing/README.md) | Hash rings, virtual nodes, and key placement as nodes change |
 | [CAP Theorem](cap-theorem/README.md) | Consistency and availability during a network partition |
+| [Key Technologies](key-technologies/README.md) | Redis, Elasticsearch, Kafka, Temporal, API Gateway, Cassandra, and DynamoDB |
