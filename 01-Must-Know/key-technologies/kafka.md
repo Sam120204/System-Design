@@ -20,15 +20,43 @@ With a standard consumer group, each partition is assigned to at most one member
 
 ## Produce, replicate, and consume
 
-1. A producer sends a record with a key, payload, timestamp, and optional headers. The producer chooses a partition, typically by hashing a key when supplied, and contacts that partition's leader. Each partition is an append-only log. Offsets define record order within the partition.
-2. The partition leader appends the record and followers replicate it. With replication factor 3, `acks=all`, and `min.insync.replicas=2`, a write is acknowledged by all current in-sync replicas while at least two are participating. If too few replicas are in sync, writes using `acks=all` fail. An eligible in-sync follower can take over after a leader failure.
-3. Consumers poll for records and commit the next offset to read after persisting their results. After a restart or rebalance, processing resumes from the committed position. A crash between a side effect and the offset commit can cause the record to be processed again.
+### What is a partition? What is a broker?
+
+| Term | What it means | In the diagram |
+| --- | --- | --- |
+| **Topic** | The name of a stream of events. A topic contains one or more partitions. | Imagine **Topic A** holds soccer match events. |
+| **Partition** | One ordered log within a topic. Kafka appends records to it and gives each record a position called an **offset**. | **Topic A, Partition 1** is one log. **Topic A, Partition 2** is another, with its own offsets. |
+| **Broker** | A server running Kafka. It stores copies of partitions on disk and responds to producers and consumers over the network. | **Broker 1** hosts the leader of Topic A, Partition 1. **Broker 2** hosts a follower copy of that same partition and the leader of Topic A, Partition 2. |
+
+![Two Kafka brokers host leaders and follower copies of partitions from several topics](images/kafka/consume.svg)
+
+A single broker can host partitions from several topics. A single partition can have copies on several brokers. The leader and follower copies of Topic A, Partition 1 represent the **same log**, with the same partition ID and offsets.
+
+### Follow one match event through the diagram
+
+Suppose the scoreboard producer sends a goal to **Topic A** with key `match-42`.
+
+1. **Pick the partition.** The producer's partitioner hashes `match-42` and uses the result to select one of Topic A's partitions. Suppose it picks **Partition 1** in the diagram. With the same partitioner and partition count, future updates with key `match-42` go to the same partition and share its append order. Without a key, the choice depends on the producer's partitioner. A common default keeps a batch on one partition and switches for later batches.
+2. **Find the server.** The producer gets cluster metadata from Kafka brokers. The metadata says the current leader for **Topic A, Partition 1** is on **Broker 1**. The producer sends the write directly to Broker 1. The Kafka controller coordinates which broker leads each partition. The producer's choice of partition and the cluster's choice of leader are separate decisions.
+3. **Append the event.** Broker 1 adds the goal to the end of the log, say at offset 17. The next record in this partition could be at offset 18. Broker 2 copies the record as a follower. If Broker 1 fails and Broker 2 is eligible to take over, the producer refreshes its metadata and sends future writes for Partition 1 to Broker 2. The partition ID stays the same.
+
+A record's position is identified by its **topic, partition, and offset**. Offset 17 in Partition 1 and offset 17 in Partition 2 refer to separate positions. Kafka orders records within each partition by offset. An application that needs source event order across several producers may also need a sequence number in the event itself.
 
 ![A Kafka record contains headers, a key, a value, and a timestamp](images/kafka/record-structure.svg)
 
+### Why each partition is append-only
+
 ![Records are appended to one partition and identified by offsets](images/kafka/partition-offsets.svg)
 
-![Producers, Kafka partitions, and consumers form the full publish and read path](images/kafka/consume.svg)
+- **Records stay fixed after writing.** To correct a goal, publish another event. Kafka can later remove older records under retention or compaction policies.
+- **Writes and reads can work in batches.** Appending to the end of a log supports sequential disk writes, and followers and consumers can fetch batches of consecutive records.
+- **Partitions spread the workload.** Two busy partitions can have leaders on different brokers and handle writes in parallel. A follower copy helps with failover. Spreading writes from a single hot key requires a partitioning strategy that can split that workload and account for ordering.
+
+### Replication and consumer progress
+
+With replication factor 3, `acks=all`, and `min.insync.replicas=2`, a write is acknowledged after all current in-sync replicas have received it, with at least two required. If too few replicas are in sync, writes using `acks=all` fail.
+
+Consumers poll for records and commit the next offset to read for each partition after persisting their results. After a restart or rebalance, processing resumes from the committed position. A crash between a side effect and the offset commit can cause the record to be processed again.
 
 With commit-after-processing, design for at-least-once processing. An idempotent producer deduplicates the producer's retries. For a Kafka-to-Kafka pipeline, transactions can commit output records and input offsets together, with downstream consumers using `read_committed`. A write to an external database or payment API still needs idempotency or coordination with that destination. [Kafka design and delivery semantics](https://kafka.apache.org/documentation/#semantics)
 
