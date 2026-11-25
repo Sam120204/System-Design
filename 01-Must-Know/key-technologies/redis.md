@@ -41,15 +41,20 @@ SET lock:seat:42 alice-req-7f93 NX PX 30000
 2. **Do the work.** `PX 30000` makes the key expire after 30,000 milliseconds, or 30 seconds. A lock with a time limit is called a **lease**. If Alice's server crashes, Bob can try again once the key expires. The Redis timer controls how long a worker holds the lock. A customer's seat hold has its own expiry in the booking system.
 3. **Release.** The value `alice-req-7f93` stands for a unique random token generated for this acquisition. When Alice's server finishes, it asks Redis to delete the key only if the value still matches its token. The comparison and deletion must happen in one operation. With separate `GET` and `DEL` calls, the key could expire and Bob could acquire it between the two calls. Redis 8.4 and later support `DELEX lock:seat:42 IFEQ alice-req-7f93`. Earlier versions can do the same with a short Lua script. [Redis distributed locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/)
 
-### What if the first worker wakes up late?
+### A Ticketmaster-style checkout when a worker wakes up late
+
+Alice and Bob click **Reserve** on the same concert seat, Section 112, Row G, Seat 42. Each click starts a request on a different booking server.
 
 | Time | What happens |
 | --- | --- |
-| 0 seconds | Alice's server acquires the lock, then stalls before writing the booking. |
-| 30 seconds | Alice's lease expires. Bob's server acquires the same lock with a new token. |
-| 32 seconds | Alice's server resumes. Its old token cannot delete Bob's lock, but Alice's server can still try to update the database. |
+| 0 seconds | Alice's server gets the Redis lock and reads that the seat is available. It pauses just before sending the SQL update. The seat is still available in the database. |
+| 30 seconds | Alice's Redis lock expires. Bob's server gets the lock and starts its own reservation request. |
+| 31 seconds | Bob's SQL update commits. The database now holds the seat for Bob's checkout. |
+| 32 seconds | Alice's server resumes where it paused and sends the SQL update it was about to send. The database checks the seat's current status, sees Bob's hold, and updates zero rows. Alice sees that the seat is unavailable. |
 
-Expiration removes the Redis key. It cannot stop a worker that is still running. A similar overlap can happen if the Redis primary grants a lock and crashes before its replica receives the key. The promoted replica may then grant the same lock to Bob.
+Alice's server still has its usual credentials for the booking database. Redis removed the lock key at 30 seconds, and the database does not consult Redis when it receives a SQL update. If Alice's SQL only said “set the owner of seat 42 to Alice,” it could overwrite Bob's hold. The condition in the SQL below makes Alice's request fail. Her old Redis token also cannot delete Bob's lock, which is a separate check.
+
+If Bob has acquired the Redis lock but **has yet to reserve the seat in the database** at 32 seconds, Alice's conditional write can still win. The first request to successfully change the database row from available to reserved gets the hold. A Redis failover can create a similar race if the old primary granted a lock before copying its key to the replica.
 
 ### Make the database decide who gets the seat
 
@@ -61,7 +66,7 @@ SET status = 'reserved', reserved_by = 'alice'
 WHERE seat_id = 42 AND status = 'available'
 ```
 
-If both servers try, at most one changes the row from `available` to `reserved`. The other sees zero rows updated and returns that the seat is unavailable. The same conditional write works even if Redis is unavailable. Use a transaction if the booking must also create a reservation record with the seat update.
+The database checks `status = 'available'` when it runs the update, even if Alice read `available` earlier. In a checkout flow, store a unique hold ID and its expiry with the reservation. When the buyer confirms, finalize the sale only if the seat still has that hold ID and the hold is still valid. Use a transaction if the seat update and a separate reservation record must commit together.
 
 For a resource that must reject an older worker's write after a newer worker has written, a **fencing token** is a number that increases with each grant. If the resource has already accepted token 102, it rejects a later request carrying 101. The resource being written to must check that number. The random Redis token used to release the lock serves a different purpose.
 
