@@ -82,6 +82,28 @@ Suppose profile pages drive 500 reads per second against the database at peak. W
 
 Use cache-aside with a key such as `profile:user_42`. Choose a TTL based on how much profile staleness the product can tolerate and use LRU if older reads are less likely to recur. After a profile edit commits, invalidate the cached copy. Coalesce repeated misses for the same profile and bound database fallback during a cache outage. Compare latency and origin load for warm, cold, and unavailable cache states.
 
+## Interview practice
+
+Start with a repeated read or expensive computation. Explain what goes in the cache, the key and placement, how it gets populated, how it expires or is invalidated, and how the source handles misses and outages.
+
+### When would you add Redis to a profile endpoint?
+
+> Suppose profiles drive 500 peak database reads per second and each read takes 30 ms. With a 95% cache hit rate, I'd expect about 25 database reads per second from steady-state misses. I'd use a shared Redis cache and cache-aside on `profile:{user_id}`, adding tenant or visibility scope if it changes the response. I'd set the TTL from the staleness budget, use an eviction policy such as LRU for memory pressure, and invalidate after a profile edit commits. I'd measure the hit rate, origin load, and p95 latency to confirm the benefit.
+
+### Where would you cache a trending feed and its images?
+
+> I'd cache frequently reused feed results in Redis when the rankings can lag, using a key such as `trending:posts:global` and a refresh interval that matches the freshness target. I'd serve public images from a CDN with versioned URLs and include any variant that affects the bytes in the cache key. I'd consider short-lived in-process copies if one shared-cache key becomes a bottleneck.
+
+### What happens when a popular key expires or Redis goes down?
+
+> For one expiring key, I'd coalesce concurrent misses so one request rebuilds it. I can jitter TTLs to spread expirations across different keys and serve stale results during refresh if the endpoint allows them. If Redis goes down, I'd cap database fallback concurrency and shed excess work so the origin survives the traffic spike.
+
+### How would you handle freshness after writes?
+
+> I'd commit updates to the authoritative store and invalidate the cached copy. If concurrent fills can race with invalidation, I'd use versions or a coordinated fill when freshness matters. I can serve profile display fields with bounded staleness, but I'd confirm ticket availability from authoritative inventory before booking. If I propose write-behind for throughput, I'd explain how a durable buffer protects acknowledged writes and how the service replays them.
+
 ## Source
 
 [Caching · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/caching)
+
+[Caching in system design interviews · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/caching#caching-in-system-design-interviews)

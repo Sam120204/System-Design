@@ -51,6 +51,28 @@ Think separately about the fields a product wants to preserve historically. A ch
 
 Co-locate data used in the same transaction when practical. Sharding posts by `user_id` keeps the author timeline on one shard, while a feed built from many authors may need fan-out or a precomputed view. A time-only key can direct all new writes to the same shard. Choose the partition key using the expected query mix, growth, and traffic skew. [Sharding](../sharding/README.md)
 
+## Interview practice
+
+List the core entities early. When you introduce a data store, pick a database model and sketch the fields, keys, constraints, and indexes needed for the main operations. Use expected volume, access patterns, and consistency requirements to justify denormalization or sharding.
+
+### How would you model posts, comments, and likes for a social app?
+
+> I'd first write down the main operations, such as looking up a post, listing an author's recent posts, paging comments, and adding a like. I'd start with a relational model for `users`, `posts`, `comments`, and `likes`. Posts and comments reference their authors, comments reference their post, and `likes` links users and posts through a composite primary key `(user_id, post_id)`. The composite key enforces one like per user and post even when requests arrive concurrently.
+
+### What would you index for an author's latest posts?
+
+> I'd query by `user_id`, order by `created_at DESC, post_id DESC`, and index those columns in that order. The post ID breaks timestamp ties and lets the next page continue from a unique position. For a global recent-posts view I'd evaluate a separate index or read model because the author index starts with `user_id`. Each additional index adds work to inserts and updates.
+
+### When would you pick another database model?
+
+> I'd embed bounded settings in a document if the app reads them with a profile. I'd store an unbounded collection of comments as separately pageable records. For a large history read mainly by owner and time, I'd consider a wide-column store with an owner-based partition key and time-based clustering. I'd use a key-value store for session lookups by ID and consider a graph database if multi-hop relationship traversal is a core query.
+
+### Would you store like counts on posts, and how would the feed scale?
+
+> I'd keep individual likes as the source of truth. If feed reads need a count and can tolerate a brief delay, I'd maintain a derived count from deduplicated like and unlike events and reconcile it against the source. If posts outgrow one database, sharding by `user_id` keeps author timelines local. Reading across followed authors then requires fan-out and merging, or a precomputed per-viewer feed when that read path needs lower latency.
+
 ## Source
 
 [Data Modeling · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/data-modeling)
+
+[Schema design fundamentals · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/data-modeling#schema-design-fundamentals)

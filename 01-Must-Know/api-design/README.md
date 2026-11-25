@@ -61,6 +61,32 @@ Document how long the service retains the key and result. The retention period s
 
 Rate-limit by the identity and operation that consume the constrained resource. A token bucket can permit short bursts while controlling the sustained rate. Return `429 Too Many Requests` when a caller exceeds its limit, with `Retry-After` when the service can suggest a wait.
 
+## Interview practice
+
+Spend roughly five minutes outlining the user-facing contract. Map the main requirements to requests and responses, then explain the design choices that affect the system, such as pagination, permissions, or retries. Bring up internal calls when they help explain the architecture.
+
+### What API would you expose for Ticketmaster, and when would you choose GraphQL or gRPC?
+
+> I'd start with REST for the main client flows. `GET /events?city=Toronto&status=upcoming` lists events, `GET /events/{event_id}/tickets` reads availability, `POST /events/{event_id}/bookings` creates a booking, and `GET /bookings/{booking_id}` reads it. I'd consider GraphQL if clients need significantly different combinations of fields and related data. I'd consider gRPC for typed internal calls such as `ReserveSeats`, especially when deadlines or streaming matter.
+
+### How would you paginate and filter events?
+
+> I'd expose `limit`, `city`, and `status` as query parameters with a server-enforced maximum page size. Offset pagination is fine for a small list that needs page numbers. For a large or frequently changing list, I'd return an opaque cursor based on `(starts_at, event_id)` and use the same filters and sort order on the next request. If the client needs a stable snapshot across pages, I'd define that separately.
+
+### What if the booking request times out and the client retries?
+
+> The client sends the same `Idempotency-Key` and body for each attempt at one booking. The service claims that key atomically for the caller and operation, binds it to the inputs, and reuses the completed result. If the first attempt is still processing, the duplicate waits or gets an in-progress response. Inventory and payment calls use stable operation IDs so retries there also deduplicate.
+
+### How would you handle authorization, conflicts, and rate limits?
+
+> I'd authenticate the caller on booking endpoints, then check their role and whether they can access that specific booking. If the requested seat is taken, I'd return `409 Conflict` with a stable `SEAT_UNAVAILABLE` code so the client can reopen seat selection. I'd rate-limit booking attempts by caller and return `429` when the caller exceeds the limit.
+
+### How would you change the response while old mobile clients are still active?
+
+> I'd add optional fields where existing clients can accept them and keep existing field meanings stable. If the change breaks the contract, I'd introduce a new version such as `/v2/events` and keep the old version available through a defined migration window.
+
 ## Source
 
 [API Design · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/api-design)
+
+[API design principles · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/api-design#api-design-principles) · [Common API patterns · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/api-design#common-api-patterns)

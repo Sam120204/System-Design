@@ -34,6 +34,38 @@ Keep related writes together when they must commit atomically. A supported distr
 
 Adding capacity means moving ownership as well as copying rows. For an online move, copy the target key range, catch up writes from a change stream or the database's migration mechanism, validate the copy, then switch routing with a cutover that prevents both shards from accepting authoritative writes. Let stale routers refresh or redirect, and retain the old copy until rollback or cleanup policy permits deletion. Managed systems differ in which steps they automate.
 
+## How Cassandra, MongoDB, and DynamoDB shard data
+
+| Database | What you choose | What the database handles | What to check |
+| --- | --- | --- | --- |
+| **Cassandra** | A partition key for rows read together and clustering columns for order within a partition | A partitioner, typically `Murmur3Partitioner`, hashes the key to a token. In a vnode-based cluster, each physical node owns multiple token ranges on a consistent-hashing ring. The coordinator uses the token and replication strategy to find the replicas | For a high-volume event history, `(user_id, month)` bounds partition size. A read across months queries multiple partitions. One heavily used partition key can still be hot |
+| **MongoDB** | A shard key for each sharded collection and a ranged or hashed strategy | The cluster divides the shard-key space into chunks. With a hashed key, chunk boundaries are in the hash space. `mongos` routes queries using shard metadata, and the balancer migrates chunks between shards | Ranged keys can preserve locality for range queries, and hashed keys can spread writes across many distinct values. Queries without a usable shard key can scatter to all shards. Hashing one repeated value still produces one value |
+| **DynamoDB** | A partition key and, when useful, a sort key. Define secondary indexes for other query paths | DynamoDB hashes the partition key and manages physical placement, growth, and replication behind the service API. `Query` uses an exact partition key and can constrain the sort key | Choose a key that spreads traffic. If one logical key receives too many independent writes, add a bucket suffix and query across buckets for the full history. Check the key distribution on global secondary indexes too |
+
+[Apache Cassandra architecture](https://cassandra.apache.org/doc/latest/cassandra/architecture/dynamo.html) · [MongoDB sharding](https://www.mongodb.com/docs/manual/sharding/) · [MongoDB balancer](https://www.mongodb.com/docs/manual/core/sharding-balancer-administration/) · [DynamoDB partitioning](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html) · [DynamoDB write sharding](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html)
+
+## Interview practice
+
+Use the workload to identify the limiting resource, then explain the shard key, routing, cross-shard queries, and what happens when capacity grows.
+
+### When would you shard a database?
+
+> With 500 million users at 5 KB each, I estimate 2.5 TB of raw data before indexes and replicas. I'd compare storage growth, peak write throughput, and peak read throughput against a tuned primary and its read replicas. If the primary can't sustain our projected writes or storage with enough headroom, I'd shard. For a read bottleneck I'd also check whether indexing, caching, or replicas meet the latency target.
+
+### How would you shard a social app, and what if a celebrity account gets hot?
+
+> I'd hash `user_id` for user profiles and author timelines because those requests include the user ID. A feed across followed authors needs a separate query or feed view. I'd cache a celebrity's hot reads if the freshness target allows it. If that user's independent writes saturate one shard, I'd bucket those writes and budget for merging the buckets on reads. I'd size the initial deployment from peak load and growth, then move token ranges or logical buckets as capacity expands.
+
+### How would you serve global trending posts across shards?
+
+> If each post and its full score live on one shard, ask each shard for its local top K using the same ranking and tiebreaker, then merge the results. If scores are split across shards, combine partial counts before ranking. For frequent requests, I'd publish a precomputed top-K view on a refresh interval that matches how fresh trending needs to be.
+
+### How would you transfer money between accounts on different shards?
+
+> First I'd establish the ledger's invariant. If both entries must commit together, I'd use a database that supports atomic transactions across those shards or place the ledger entries within one transactional boundary. If pending transfers are acceptable, I'd persist the transfer state and use idempotent debit, credit, and compensation steps with reconciliation for failures.
+
 ## Source
 
 [Sharding · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/sharding)
+
+[Sharding in system design interviews · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/sharding#sharding-in-system-design-interviews) · [Quick reference · Hello Interview](https://www.hellointerview.com/learn/system-design/core-concepts/sharding/quick-reference)
