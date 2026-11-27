@@ -58,7 +58,7 @@ A timing wheel is another option for timers and scheduling; it does not require 
 **Design examples:**
 
 - Design Distributed Cache.
-- Design URL Shortener.
+- [Design a URL Shortener (Bitly)](design-url-shortener.md).
 - Design Rate Limiter.
 
 ## 4. Prefix Structures: Trie, Radix Tree, and Variants
